@@ -1,0 +1,1496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SISG Instructor Portal</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --blue:#1a73e8; --blue-dark:#1557b0; --ink:#202124; --muted:#5f6368;
+      --line:#e2e7ee; --surface:#fff; --canvas:#f5f7fb; --green:#188038;
+      --red:#d93025; --orange:#e8710a; --purple:#7e57c2;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--canvas); color:var(--ink); font-family:Inter,"Segoe UI",Arial,sans-serif; }
+    button,input,select,textarea { font:inherit; }
+    button:disabled { cursor:not-allowed; opacity:.55; }
+    .container { width:min(1520px,100%); margin:0 auto; padding:26px; }
+    .topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
+    h1 { margin:0 0 5px; color:var(--blue); font-size:30px; }
+    h2,h3 { margin:0; }
+    .muted { color:var(--muted); }
+    .panel,.toolbar,.card { border:1px solid var(--line); background:var(--surface); box-shadow:0 3px 14px rgba(32,33,36,.05); }
+    .toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:20px 0 14px; padding:14px; border-radius:14px; }
+    .toolbar .search { flex:1 1 260px; }
+    .toolbar .class-filter { flex:0 1 270px; }
+    .panel { padding:20px; border-radius:14px; }
+    .card { padding:17px; border-radius:12px; border-top:4px solid var(--blue); }
+    .btn { border:0; border-radius:8px; padding:10px 14px; background:var(--blue); color:white; cursor:pointer; font-weight:750; }
+    .btn:hover { filter:brightness(.95); }
+    .btn.secondary { background:#eaf2fd; color:var(--blue-dark); }
+    .btn.green { background:var(--green); }
+    .btn.orange { background:var(--orange); }
+    .btn.danger { background:var(--red); }
+    .btn.small { padding:7px 10px; font-size:12px; }
+    .tabs { display:flex; gap:5px; overflow-x:auto; margin:0 0 18px; padding:5px; border-radius:12px; background:#e9eff7; }
+    .tab { white-space:nowrap; border:0; border-radius:8px; padding:10px 14px; background:transparent; color:#52606d; cursor:pointer; font-weight:750; }
+    .tab.active { background:white; color:var(--blue-dark); box-shadow:0 1px 5px rgba(32,33,36,.12); }
+    .view { display:none; }
+    .view.active { display:block; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:16px; }
+    .split { display:grid; grid-template-columns:minmax(320px,.78fr) minmax(460px,1.22fr); gap:18px; }
+    .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:13px; margin-top:17px; }
+    .field label { display:block; margin-bottom:6px; color:#4b5563; font-size:12px; font-weight:800; }
+    .full { grid-column:1/-1; }
+    input[type="text"],input[type="url"],input[type="date"],input[type="time"],input[type="number"],select,textarea {
+      width:100%; padding:10px 11px; border:1px solid #cdd4de; border-radius:8px; background:white; color:var(--ink);
+    }
+    textarea { resize:vertical; }
+    .check { display:flex; align-items:center; gap:7px; font-size:13px; font-weight:700; }
+    .check input { width:18px; height:18px; }
+    .toggle-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; padding:12px; border-radius:10px; background:#f7f9fc; }
+    .badge { display:inline-flex; align-items:center; gap:4px; margin:4px 3px 0 0; padding:4px 8px; border-radius:999px; font-size:11px; font-weight:750; }
+    .badge.neutral { background:#edf0f2; color:#52606d; }
+    .badge.ok { background:#dff3e4; color:#137333; }
+    .badge.wait { background:#fff3cd; color:#8a5b00; }
+    .badge.bad { background:#fce8e6; color:#b3261e; }
+    .badge.virtual { background:#f0e8ff; color:#6741a5; }
+    .badge.face { background:#e5f0ff; color:#1557b0; }
+    .progress { height:11px; overflow:hidden; border-radius:999px; background:#e8eaed; }
+    .progress > span { display:block; height:100%; background:#34a853; }
+    .progress-copy { display:flex; justify-content:space-between; gap:8px; margin-top:5px; color:var(--muted); font-size:12px; }
+    .attendance-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; padding:10px; border-radius:9px; background:#f8fafc; }
+    .summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:16px 0; }
+    .summary-card { padding:15px; border:1px solid var(--line); border-radius:11px; background:#fff; }
+    .summary-card p { margin:0; }
+    .summary-card strong { display:block; margin-top:6px; font-size:26px; }
+    .scroll { overflow:auto; max-height:62vh; margin-top:15px; border:1px solid var(--line); border-radius:10px; background:white; }
+    .scroll.compact { max-height:56vh; }
+    table { width:100%; border-collapse:separate; border-spacing:0; min-width:max-content; font-size:12px; }
+    th,td { padding:8px 9px; border-right:1px solid #edf0f2; border-bottom:1px solid #edf0f2; text-align:center; }
+    th { position:sticky; top:0; z-index:3; background:#eef3f9; color:#44546a; }
+    th:first-child,td:first-child { position:sticky; left:0; z-index:2; min-width:190px; background:white; text-align:left; }
+    th:first-child { z-index:4; background:#e4ecf7; }
+    .badge-column { width:74px; min-width:74px; max-width:74px; }
+    .badge-column .cut { display:block; max-width:62px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .matrix-ok { background:#eef8f0; color:#137333; font-weight:850; }
+    .matrix-miss { background:#fff2f1; color:#b3261e; font-weight:850; }
+    .matrix-future { background:#fffaf0; color:#8a5b00; }
+    .list { display:grid; gap:10px; margin-top:15px; }
+    .list-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:13px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+    .actions { display:flex; flex-wrap:wrap; gap:7px; justify-content:flex-end; }
+    .class-card { cursor:pointer; }
+    .class-card.selected { border-color:#8ab4f8; box-shadow:0 0 0 3px #e8f0fe; }
+    .member-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:8px; margin-top:14px; max-height:300px; overflow:auto; }
+    .member { display:flex; gap:8px; align-items:flex-start; padding:9px; border:1px solid var(--line); border-radius:8px; }
+    .member input { margin-top:2px; }
+    .badge-requirement-grid { display:grid; gap:8px; margin-top:12px; max-height:440px; overflow:auto; padding-right:3px; }
+    .badge-requirement { display:grid; grid-template-columns:auto minmax(0,1fr) 150px auto; gap:10px; align-items:center; padding:10px; border:1px solid var(--line); border-radius:9px; background:#fff; }
+    .badge-requirement input[type="checkbox"] { width:18px; height:18px; }
+    .badge-requirement .requirement-name { overflow:hidden; text-overflow:ellipsis; font-size:13px; font-weight:750; }
+    .badge-requirement .requirement-meta { margin-top:3px; color:var(--muted); font-size:11px; }
+    .badge-requirement .due-override label { display:block; margin-bottom:4px; color:var(--muted); font-size:10px; font-weight:800; }
+    .badge-requirement .due-override input { padding:7px 8px; font-size:12px; }
+    .project-admin-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(310px,1fr)); gap:16px; margin-top:16px; }
+    .project-assignment-row { display:grid; grid-template-columns:minmax(190px,1fr) minmax(170px,.75fr) minmax(130px,.55fr); gap:10px; align-items:center; padding:10px; border:1px solid var(--line); border-radius:9px; background:white; }
+    .project-assignment-row strong { display:block; font-size:13px; }
+    .project-assignment-row small { display:block; margin-top:2px; color:var(--muted); }
+    .project-stat-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:10px; }
+    .project-stat { padding:9px; border-radius:8px; background:#f7f9fc; text-align:center; font-size:11px; color:var(--muted); }
+    .project-stat b { display:block; margin-bottom:2px; color:var(--ink); font-size:17px; }
+    .calendar-header { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-top:14px; color:#6b7280; text-align:center; font-size:10px; font-weight:800; text-transform:uppercase; }
+    .calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-top:6px; }
+    .calendar-day { min-height:92px; padding:7px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+    .calendar-day.outside { opacity:.4; background:#f5f6f8; }
+    .calendar-day.today { border-color:#4f8de8; background:#eef6ff; }
+    .calendar-pill { display:block; overflow:hidden; margin-top:4px; padding:3px 5px; border-radius:5px; text-overflow:ellipsis; white-space:nowrap; font-size:9px; font-weight:750; cursor:pointer; }
+    .calendar-pill.virtual { background:#f0e8ff; color:#6741a5; }
+    .calendar-pill.face { background:#e5f0ff; color:#1557b0; }
+    .empty { padding:20px; border-radius:10px; background:#f7f9fb; color:var(--muted); text-align:center; }
+    #loadingStatus { padding:30px; text-align:center; font-size:17px; }
+    .loading-overlay { position:fixed; inset:0; z-index:100; display:grid; place-items:center; padding:24px; background:rgba(245,247,251,.9); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); opacity:0; visibility:hidden; pointer-events:none; transition:opacity .16s ease,visibility .16s ease; }
+    .loading-overlay.visible { opacity:1; visibility:visible; pointer-events:auto; }
+    .loading-card { width:min(330px,100%); padding:28px 24px; border:1px solid #dbe4f0; border-radius:20px; background:#fff; box-shadow:0 20px 50px rgba(32,33,36,.16); text-align:center; }
+    .loading-spinner { width:44px; height:44px; margin:0 auto 16px; border:4px solid #dbeafe; border-top-color:var(--blue); border-radius:999px; animation:loading-spin .75s linear infinite; }
+    .loading-message { margin:0; color:var(--ink); font-size:17px; font-weight:800; }
+    .loading-hint { margin:7px 0 0; color:var(--muted); font-size:13px; }
+    @keyframes loading-spin { to { transform:rotate(360deg); } }
+    @media (prefers-reduced-motion:reduce) { .loading-overlay{transition:none}.loading-spinner{animation-duration:1.5s} }
+    @media (max-width:1000px) {
+      .container { padding:16px; } .split { grid-template-columns:1fr; }
+      .summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    }
+    @media (max-width:700px) {
+      .topbar { display:block; } .form-grid,.toggle-grid { grid-template-columns:1fr; }
+      .full { grid-column:auto; } .summary-grid { grid-template-columns:1fr 1fr; }
+      .calendar-day { min-height:70px; padding:4px; } .calendar-pill { font-size:8px; }
+      .list-row { display:block; } .actions { margin-top:10px; justify-content:flex-start; }
+      .badge-requirement { grid-template-columns:auto minmax(0,1fr); }
+      .badge-requirement .due-override { grid-column:2; }
+      .badge-requirement .remove-badge { grid-column:2; justify-self:start; }
+    }
+  </style>
+</head>
+<body>
+  <div id="trainerLogin" style="position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:#f5f7fb;padding:24px">
+    <div class="panel" style="max-width:420px;text-align:center;padding:32px">
+      <h1>Instructor access</h1>
+      <p class="muted">Sign in with an approved instructor account.</p>
+      <button class="btn" onclick="trainerLogin()">Sign in with Google</button>
+      <p id="trainerError" style="color:#b3261e;font-size:14px"></p>
+    </div>
+  </div>
+
+  <div id="teacherLoadingOverlay" class="loading-overlay" role="status" aria-live="polite" aria-hidden="true">
+    <div class="loading-card">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <p id="teacherLoadingMessage" class="loading-message">Loading…</p>
+      <p class="loading-hint">Please wait a moment.</p>
+    </div>
+  </div>
+
+  <main id="trainerApp" class="container" style="display:none">
+    <header class="topbar">
+      <div>
+        <h1>☁️ SISG Instructor Portal</h1>
+        <div class="muted">Class-scoped attendance, badges, schedules, resources and mock exams.</div>
+      </div>
+      <span id="weekLabel" class="badge wait">Current week</span>
+    </header>
+
+    <div class="toolbar">
+      <input class="search" type="text" id="searchInput" placeholder="Search student name or email…" oninput="renderAll()">
+      <select id="classFilter" class="class-filter" onchange="changeClassFilter(this.value)"><option value="ALL">All classes</option></select>
+      <button class="btn secondary" onclick="syncAllBadges()">🏅 Sync badges</button>
+      <button class="btn orange" onclick="sendAttendanceEmails()">📩 Email attendance</button>
+      <button class="btn" onclick="loadData()">↻ Refresh</button>
+    </div>
+
+    <nav class="tabs">
+      <button class="tab active" data-view="students" onclick="switchTeacherView('students')">Overview</button>
+      <button class="tab" data-view="classes" onclick="switchTeacherView('classes')">Classes & schedule</button>
+      <button class="tab" data-view="projects" onclick="switchTeacherView('projects')">Groups & projects</button>
+      <button class="tab" data-view="weekly-badges" onclick="switchTeacherView('weekly-badges')">Badges due this week</button>
+      <button class="tab" data-view="badges" onclick="switchTeacherView('badges')">Badge tracker</button>
+      <button class="tab" data-view="scores" onclick="switchTeacherView('scores')">Mock scores</button>
+      <button class="tab" data-view="resources" onclick="switchTeacherView('resources')">Weekly resources</button>
+      <button class="tab" data-view="links" onclick="switchTeacherView('links')">Portal links</button>
+    </nav>
+
+    <div id="loadingStatus">Loading connected databases…</div>
+
+    <section id="view-students" class="view active">
+      <div id="overviewSummary" class="summary-grid"></div>
+      <div id="traineeGrid" class="grid"></div>
+    </section>
+
+    <section id="view-classes" class="view">
+      <div class="split">
+        <div class="panel">
+          <h2>Class settings</h2>
+          <p class="muted">Create a class, control its portal features, then assign students.</p>
+          <div class="form-grid">
+            <div class="field"><label>Class ID</label><input id="classId" type="text" placeholder="e.g. GCP-AUG-01"></div>
+            <div class="field"><label>Class name</label><input id="className" type="text" placeholder="e.g. August GCP Cohort"></div>
+            <div class="field full">
+              <label>Initial badge range</label>
+              <input id="classBadgeColumns" type="text" value="ALL" placeholder="ALL, E:X or Y:AQ">
+              <small class="muted">Used as the starting selection for new or legacy classes. After saving individual badge requirements, the managed list becomes authoritative.</small>
+            </div>
+            <div class="full toggle-grid">
+              <label class="check"><input id="classActive" type="checkbox" checked>Active class</label>
+              <label class="check"><input id="classPortalEnabled" type="checkbox" checked>Student portal</label>
+              <label class="check"><input id="classAttendanceEnabled" type="checkbox" checked>Attendance</label>
+              <label class="check"><input id="classBadgesEnabled" type="checkbox" checked>Badge tracking</label>
+              <label class="check"><input id="classResourcesEnabled" type="checkbox" checked>Weekly resources</label>
+              <label class="check"><input id="classMockExamsEnabled" type="checkbox" checked>Mock exams</label>
+            </div>
+            <div class="full actions" style="justify-content:flex-start">
+              <button class="btn green" onclick="saveClass()">Save class</button>
+              <button class="btn secondary" onclick="newClass()">New class</button>
+            </div>
+          </div>
+          <div id="classList" class="list"></div>
+        </div>
+
+        <div>
+          <div class="panel">
+            <h2>Badge requirements</h2>
+            <p class="muted">Create badges once, then select which classes require them. Removing a badge hides it safely while preserving past tracker records.</p>
+            <div class="form-grid" style="margin-top:12px">
+              <div class="field"><label>New badge name</label><input id="newBadgeName" type="text" placeholder="Exact Google Skills badge name"></div>
+              <div class="field"><label>Badge/course URL (optional)</label><input id="newBadgeUrl" type="url" placeholder="https://…"></div>
+              <div class="field"><label>Default due date (optional)</label><input id="newBadgeDueDate" type="date"></div>
+              <div class="field" style="align-self:end"><button class="btn green" type="button" onclick="addBadgeDefinition()">Add badge</button></div>
+            </div>
+            <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
+            <p id="badgeRequirementHint" class="muted">Choose one class to manage its required badges.</p>
+            <div class="actions" style="justify-content:flex-start;margin-top:12px">
+              <input id="badgeRequirementSearch" type="text" placeholder="Search badges…" oninput="filterClassBadgeRequirements()" style="flex:1 1 190px">
+              <button class="btn small secondary" type="button" onclick="setAllClassBadges(true)">Select all</button>
+              <button class="btn small secondary" type="button" onclick="setAllClassBadges(false)">Clear</button>
+            </div>
+            <div id="classBadgeRequirementGrid" class="badge-requirement-grid"></div>
+            <button id="saveClassBadgesBtn" class="btn green" style="margin-top:14px" onclick="saveClassBadges()">Apply badge requirements</button>
+          </div>
+
+          <div class="panel" style="margin-top:18px">
+            <h2>Student membership</h2>
+            <p id="membershipHint" class="muted">Choose one class from the filter to assign students.</p>
+            <div id="memberGrid" class="member-grid"></div>
+            <button id="saveMembersBtn" class="btn green" style="margin-top:14px" onclick="saveClassMembers()">Save membership</button>
+          </div>
+
+          <div class="panel" style="margin-top:18px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+              <div><h2>Monthly class calendar</h2><p class="muted">Virtual and face-to-face sessions are visibly distinct.</p></div>
+              <div class="actions"><button class="btn small secondary" onclick="changeTeacherMonth(-1)">‹</button><strong id="teacherMonthLabel"></strong><button class="btn small secondary" onclick="changeTeacherMonth(1)">›</button></div>
+            </div>
+            <div class="calendar-header"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+            <div id="teacherCalendar" class="calendar-grid"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:18px">
+        <h2>Manage class sessions</h2>
+        <p class="muted">Sessions feed the student weekly lesson calendar, monthly delivery calendar, and 09:00/13:00 attendance automation.</p>
+        <input id="editingCourseId" type="hidden">
+        <div class="form-grid">
+          <div class="field"><label>Course/session ID</label><input id="courseId" type="text" placeholder="e.g. W1-GCP-AM"></div>
+          <div class="field"><label>Title</label><input id="courseTitle" type="text" placeholder="Course title"></div>
+          <div class="field"><label>Class mode</label><select id="courseMode"><option value="Face to face">Face to face</option><option value="Virtual">Virtual</option></select></div>
+          <div class="field"><label>Date</label><input id="courseDate" type="date"></div>
+          <div class="field"><label>Course start</label><input id="courseStart" type="time" value="09:00"></div>
+          <div class="field"><label>Attendance checkpoint</label><select id="courseSession" onchange="applySessionDefaults()"><option value="Morning">Morning · 09:00</option><option value="Afternoon">Afternoon · 13:00</option></select></div>
+          <div class="field"><label>Attendance time</label><input id="courseAttendanceTime" type="time" value="09:00"></div>
+          <div class="field"><label>Check-in opens</label><input id="courseOpens" type="time" value="08:30"></div>
+          <div class="field"><label>Attendance label</label><input id="courseAttendanceLabel" type="text" value="Lesson start"></div>
+          <div class="field"><label>Portal status</label><select id="courseStatus"><option>Published</option><option>Draft</option><option>Cancelled</option></select></div>
+          <div class="field full"><label>Description</label><textarea id="courseDescription" rows="3"></textarea></div>
+          <label class="check"><input id="courseAttendanceEnabled" type="checkbox" checked>Attendance enabled</label>
+          <div class="actions" style="justify-content:flex-start"><button class="btn green" onclick="saveCourse()">Save session</button><button class="btn secondary" onclick="resetCourseForm()">Clear</button></div>
+        </div>
+        <div id="courseList" class="list"></div>
+      </div>
+    </section>
+
+    <section id="view-projects" class="view">
+      <div class="panel">
+        <h2>Project groups</h2>
+        <p id="projectAdminHint" class="muted">Choose one class to create groups and assign students. A student can belong to one active project group per class.</p>
+        <div class="project-admin-grid">
+          <div class="card">
+            <h3>Create or edit a group</h3>
+            <div class="form-grid">
+              <div class="field"><label>Group ID</label><input id="projectGroupId" type="text" placeholder="e.g. GROUP-1"></div>
+              <div class="field"><label>Group name</label><input id="projectGroupName" type="text" placeholder="e.g. Group 1"></div>
+              <div class="field full"><label>Notes</label><textarea id="projectGroupNotes" rows="3" placeholder="Optional instructor notes"></textarea></div>
+              <label class="check"><input id="projectGroupActive" type="checkbox" checked>Active group</label>
+              <div class="actions" style="justify-content:flex-start"><button id="saveProjectGroupBtn" class="btn green" onclick="saveProjectGroup()">Save group</button><button class="btn secondary" onclick="resetProjectGroupForm()">Clear</button></div>
+            </div>
+            <div id="projectGroupList" class="list"></div>
+          </div>
+          <div class="card">
+            <h3>Assign students to groups</h3>
+            <p class="muted" style="font-size:12px">Only active members of the selected class are listed. Leave a student unassigned by selecting “No group”.</p>
+            <div id="projectGroupAssignmentGrid" class="list"></div>
+            <button id="saveProjectGroupAssignmentsBtn" class="btn green" style="margin-top:14px" onclick="saveProjectGroupAssignments()">Save group assignments</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:18px">
+        <h2>Project definitions</h2>
+        <p class="muted">The default values below follow the Badge Tracker project brief: architecture/business/technical/cost deck, working POC, future state, 30-minute presentation, 10-minute Q&amp;A, and a US$300 credit ceiling.</p>
+        <div class="form-grid">
+          <div class="field"><label>Project ID</label><input id="projectId" type="text" placeholder="e.g. FINAL-PROJECT"></div>
+          <div class="field"><label>Project name</label><input id="projectName" type="text" placeholder="e.g. Final Google Cloud Project"></div>
+          <div class="field"><label>Project type</label><select id="projectType"><option>Mini Project</option><option selected>Final Project</option><option>Capstone</option><option>Other</option></select></div>
+          <div class="field"><label>Due date</label><input id="projectDueDate" type="date"></div>
+          <div class="field full"><label>Description</label><textarea id="projectDescription" rows="3" placeholder="Project purpose and expected outcome"></textarea></div>
+          <div class="field full"><label>Submission requirements</label><textarea id="projectRequirements" rows="5">Deck: solution architecture diagram, key business points, technical evaluation, assumptions and cost table.
+Proof of Concept: at least 3 working features, including AI and Agentic AI / Gemini Enterprise where applicable.
+Include the future-state design. Prepare a 30-minute presentation and 10-minute Q&amp;A.
+Do not exceed the US$300 free credit; stop cloud services when not in use.</textarea></div>
+          <div class="field"><label>Minimum working features</label><input id="projectMinimumFeatures" type="number" min="0" value="3"></div>
+          <div class="field"><label>Credit limit (USD)</label><input id="projectCreditLimit" type="number" min="0" value="300"></div>
+          <div class="field"><label>Presentation minutes</label><input id="projectPresentationMinutes" type="number" min="0" value="30"></div>
+          <div class="field"><label>Q&amp;A minutes</label><input id="projectQaMinutes" type="number" min="0" value="10"></div>
+          <label class="check"><input id="projectPublished" type="checkbox" checked>Published to assigned groups</label>
+          <label class="check"><input id="projectPeerEvaluation" type="checkbox" checked>Peer evaluation enabled</label>
+          <div class="actions full" style="justify-content:flex-start"><button id="saveProjectBtn" class="btn green" onclick="saveProjectDefinition()">Save project</button><button class="btn secondary" onclick="resetProjectForm()">Clear</button></div>
+        </div>
+        <div id="projectDefinitionList" class="list"></div>
+      </div>
+
+      <div class="panel" style="margin-top:18px">
+        <h2>Assign projects to groups</h2>
+        <p class="muted">The same project definition can be reused while each group receives a different use case, brief, cloud account and presentation order.</p>
+        <div class="form-grid">
+          <div class="field"><label>Group</label><select id="groupProjectGroup"></select></div>
+          <div class="field"><label>Project</label><select id="groupProjectProject"></select></div>
+          <div class="field full"><label>Use case / organisation</label><textarea id="groupProjectUseCase" rows="3" placeholder="e.g. Cymbal Retail — catalogue enrichment and conversational commerce"></textarea></div>
+          <div class="field"><label>Project brief URL</label><input id="groupProjectBriefUrl" type="url" placeholder="https://…"></div>
+          <div class="field"><label>Group trial account</label><input id="groupProjectTrialAccount" type="text" placeholder="group account email"></div>
+          <div class="field"><label>Cloud console URL</label><input id="groupProjectConsoleUrl" type="url" placeholder="https://console.cloud.google.com/…"></div>
+          <div class="field"><label>Presentation order</label><input id="groupProjectPresentationOrder" type="text" placeholder="e.g. 3rd"></div>
+          <div class="field full"><label>Group-specific notes</label><textarea id="groupProjectNotes" rows="3"></textarea></div>
+          <label class="check"><input id="groupProjectActive" type="checkbox" checked>Active assignment</label>
+          <div class="actions full" style="justify-content:flex-start"><button id="saveGroupProjectBtn" class="btn green" onclick="saveGroupProjectAssignment()">Assign project</button><button class="btn secondary" onclick="resetGroupProjectForm()">Clear</button></div>
+        </div>
+        <div id="groupProjectList" class="list"></div>
+      </div>
+
+      <div class="panel" style="margin-top:18px">
+        <h2>Submissions and peer evaluation</h2>
+        <p class="muted">Group submissions are shared across the team. Peer-evaluation records are accepted only when evaluator and evaluatee belong to the same group.</p>
+        <div id="projectSubmissionSummary" class="summary-grid"></div>
+        <div id="projectSubmissionList" class="list"></div>
+      </div>
+    </section>
+
+    <section id="view-weekly-badges" class="view">
+      <div class="panel">
+        <h2>Badges due this week</h2>
+        <p id="badgeWeekText" class="muted">Progress is calculated from the real due-date headers in the Badge Tracker.</p>
+        <div id="weeklyBadgeSummary" class="grid" style="margin-top:16px"></div>
+      </div>
+    </section>
+
+    <section id="view-badges" class="view">
+      <div class="panel">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px">
+          <div><h2>Compact skill badge tracker</h2><p class="muted">The tracker stays inside a fixed scrolling area; names and headers remain pinned.</p></div>
+          <select id="badgeScope" style="width:auto" onchange="renderBadgeMatrix()"><option value="week">This week + overdue</option><option value="all">All badges</option></select>
+        </div>
+        <div id="badgeMatrix" class="scroll compact"></div>
+      </div>
+    </section>
+
+    <section id="view-scores" class="view">
+      <div class="panel">
+        <h2>Mock exam score showcase</h2>
+        <p class="muted">Latest Mock Exam 1 and 2 scores from the connected Badge Tracker and submission history.</p>
+        <div id="scoreSummary" class="summary-grid"></div>
+        <div id="scoreTable" class="scroll"></div>
+      </div>
+    </section>
+
+    <section id="view-resources" class="view">
+      <div class="panel">
+        <h2>Schedule weekly resources</h2>
+        <p class="muted">Choose any start date; it is stored as that week’s Monday. Add a link, a file, or both.</p>
+        <input id="resourceId" type="hidden">
+        <div class="form-grid">
+          <div class="field"><label>Week start/date</label><input id="resourceWeekStart" type="date"></div>
+          <div class="field"><label>Course</label><select id="resourceCourseId"><option value="">General / all sessions</option></select></div>
+          <div class="field"><label>Resource title</label><input id="resourceTitle" type="text" placeholder="e.g. Lab guide"></div>
+          <div class="field"><label>URL (optional with file)</label><input id="resourceUrl" type="url" placeholder="https://…"></div>
+          <div class="field full"><label>File upload (8 MB maximum)</label><input id="resourceFile" type="file"></div>
+          <div class="field full"><label>Description</label><textarea id="resourceDescription" rows="3" placeholder="What students should use this for"></textarea></div>
+          <label class="check"><input id="resourcePublished" type="checkbox" checked>Published to students when the week starts</label>
+          <div class="actions" style="justify-content:flex-start"><button class="btn green" onclick="saveWeeklyResource()">Save / schedule</button><button class="btn secondary" onclick="resetResourceForm()">Clear</button></div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:18px">
+        <h2>Resource history</h2>
+        <p class="muted">Scheduled, current, past and archived items stay available for management.</p>
+        <div id="resourceHistory" class="list"></div>
+      </div>
+    </section>
+
+    <section id="view-links" class="view">
+      <div class="panel">
+        <h2>Class feedback links</h2>
+        <p id="classFeedbackLinkHint" class="muted">Choose one class from the class filter. Each class can publish different Feedback Form 1 and Feedback Form 2 links.</p>
+        <div id="classFeedbackLinkEditor" class="list"></div>
+        <button id="saveClassFeedbackLinksBtn" class="btn green" style="margin-top:16px" onclick="saveClassFeedbackLinks()">Save class feedback links</button>
+      </div>
+      <div class="panel" style="margin-top:18px">
+        <h2>Class exam links</h2>
+        <p id="classExamLinkHint" class="muted">Choose one class from the class filter. Each class can publish a different PCA sample, Mock Exam 1 and Mock Exam 2 link.</p>
+        <div id="classExamLinkEditor" class="list"></div>
+        <button id="saveClassExamLinksBtn" class="btn green" style="margin-top:16px" onclick="saveClassExamLinks()">Save class exam links</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script>
+    const GAS_URL = window.SISG_CONFIG.GAS_URL;
+    const API_KEY = window.SISG_CONFIG.API_KEY;
+    const STUDENT_PAGE_URL = window.SISG_CONFIG.STUDENT_PAGE_URL;
+    const CLASS_FEEDBACK_LINK_KEYS = ['feedback_form_1','feedback_form_2'];
+    const CLASS_EXAM_LINK_KEYS = ['pca_sample','mock_exam_1','mock_exam_2'];
+    const LINK_DEFAULTS = {
+      feedback_form_1:['Feedback Form 1','First published feedback form.'],
+      feedback_form_2:['Feedback Form 2','Second published feedback form.'],
+      pca_sample:['PCA Sample Questions','PCA sample-question test for this class.'],
+      mock_exam_1:['Mock Exam 1','First mock examination.'],
+      mock_exam_2:['Mock Exam 2','Second mock examination.']
+    };
+    let teacherData = { trainees:[], calendar:{}, weeklyResources:[], resourceHistory:[], portalLinks:{}, classManagement:{ classes:[],memberships:[],badgeCatalog:[],badgeAssignments:[],feedbackLinksByClass:{},examLinksByClass:{},projectGroups:[],projectGroupMembers:[],projects:[],groupProjects:[],projectSubmissions:[],peerEvaluations:[],courses:[],roster:[] }, mockScores:{ rows:[],summary:{} } };
+    let activeClassId = 'ALL';
+    let teacherMonthKey = new Date().toISOString().slice(0,7);
+    let teacherLoadingDepth = 0;
+
+    function escapeHtml(value) {
+      return String(value == null ? '' : value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[char]);
+    }
+    function notify(message) { alert(message); }
+    window.showLoading = function showLoading(message = 'Loading…') {
+      teacherLoadingDepth += 1;
+      const overlay = document.getElementById('teacherLoadingOverlay');
+      document.getElementById('teacherLoadingMessage').textContent = message;
+      overlay.classList.add('visible');
+      overlay.setAttribute('aria-hidden','false');
+      document.body.setAttribute('aria-busy','true');
+    };
+    window.hideLoading = function hideLoading() {
+      teacherLoadingDepth = Math.max(0, teacherLoadingDepth - 1);
+      if (teacherLoadingDepth > 0) return;
+      const overlay = document.getElementById('teacherLoadingOverlay');
+      overlay.classList.remove('visible');
+      overlay.setAttribute('aria-hidden','true');
+      document.body.removeAttribute('aria-busy');
+    };
+    function actionLoadingMessage(action) {
+      return ({
+        save_class:'Saving class settings…',
+        save_class_members:'Saving student membership…',
+        save_class_badges:'Applying class badge requirements…',
+        save_project_group:'Saving project group…',
+        save_project_group_assignments:'Assigning students to groups…',
+        save_project:'Saving project definition…',
+        save_group_project:'Assigning project to group…',
+        save_badge_definition:'Adding the badge…',
+        archive_badge_definition:'Removing the badge…',
+        save_class_feedback_links:'Saving class feedback links…',
+        save_class_exam_links:'Saving class exam links…',
+        save_course:'Saving class session…',
+        archive_course:'Cancelling class session…',
+        save_portal_links:'Saving portal links…',
+        save_weekly_resource:'Saving the weekly resource…',
+        delete_weekly_resource:'Archiving the weekly resource…',
+        teacher_acknowledge:'Verifying attendance…',
+        send_attendance_emails:'Sending attendance emails…',
+        sync_all_badges:'Syncing all badge profiles…'
+      })[action] || 'Saving your changes…';
+    }
+    function classNameFor(id) {
+      const item = (teacherData.classManagement.classes || []).find(entry => entry.id === id);
+      return item ? item.name : id;
+    }
+    function lessonModeLabel(value) {
+      return value === 'Virtual' ? 'Virtual' : 'Face to face';
+    }
+    function selectedClass() {
+      return (teacherData.classManagement.classes || []).find(item => item.id === activeClassId) || null;
+    }
+    function filteredTrainees() {
+      const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+      const filtered = (teacherData.trainees || []).filter(item => {
+        const inClass = activeClassId === 'ALL' || (item.classIds || []).includes(activeClassId);
+        const matches = !keyword || item.name.toLowerCase().includes(keyword) || item.email.toLowerCase().includes(keyword);
+        return inClass && matches;
+      });
+      if (activeClassId === 'ALL') return filtered;
+      return filtered.map(item => Object.assign({}, item, (item.progressByClass || {})[activeClassId] || {}));
+    }
+    function filteredCourses(includeAllDates = true) {
+      return (teacherData.classManagement.courses || []).filter(item => activeClassId === 'ALL' || item.classId === activeClassId);
+    }
+    async function trainerToken() {
+      if (window.getTrainerToken) window.firebaseIdToken = await window.getTrainerToken();
+      return window.firebaseIdToken || '';
+    }
+    async function postAction(action, extra = {}) {
+      window.showLoading(actionLoadingMessage(action));
+      try {
+        const token = await trainerToken();
+        const response = await fetch(GAS_URL, {
+          method:'POST',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body:JSON.stringify({ apiKey:API_KEY, authToken:token, action, classId:activeClassId, ...extra })
+        });
+        if (!response.ok) throw new Error(`Request returned HTTP ${response.status}.`);
+        const result = await response.json();
+        if (result.status !== 'success') throw new Error(result.message || 'Request failed.');
+        return result;
+      } finally {
+        window.hideLoading();
+      }
+    }
+    function switchTeacherView(view) {
+      document.querySelectorAll('.view').forEach(element => element.classList.toggle('active', element.id === `view-${view}`));
+      document.querySelectorAll('.tab').forEach(element => element.classList.toggle('active', element.dataset.view === view));
+    }
+
+    async function loadData() {
+      const loading = document.getElementById('loadingStatus');
+      loading.style.display = 'block';
+      loading.textContent = 'Loading connected databases…';
+      window.showLoading('Loading connected databases…');
+      try {
+        const token = await trainerToken();
+        const response = await fetch(`${GAS_URL}?apiKey=${encodeURIComponent(API_KEY)}&authToken=${encodeURIComponent(token)}&month=${encodeURIComponent(teacherMonthKey)}`);
+        if (!response.ok) throw new Error(`Database request returned HTTP ${response.status}.`);
+        const result = await response.json();
+        if (result.status !== 'success') throw new Error(result.message);
+        teacherData = result.data;
+        teacherData.classManagement = teacherData.classManagement || { classes:[],memberships:[],badgeCatalog:[],badgeAssignments:[],courses:[],roster:[] };
+        teacherData.classManagement.badgeCatalog = teacherData.classManagement.badgeCatalog || [];
+        teacherData.classManagement.badgeAssignments = teacherData.classManagement.badgeAssignments || [];
+        teacherData.classManagement.feedbackLinksByClass = teacherData.classManagement.feedbackLinksByClass || {};
+        teacherData.classManagement.examLinksByClass = teacherData.classManagement.examLinksByClass || {};
+        ['projectGroups','projectGroupMembers','projects','groupProjects','projectSubmissions','peerEvaluations'].forEach(key => { teacherData.classManagement[key] = teacherData.classManagement[key] || []; });
+        teacherData.resourceHistory = teacherData.resourceHistory || [];
+        teacherData.mockScores = teacherData.mockScores || { rows:[],summary:{} };
+        const cal = teacherData.calendar || {};
+        teacherMonthKey = cal.monthKey || teacherMonthKey;
+        document.getElementById('weekLabel').textContent = cal.weekStartDisplay ? `${cal.weekStartDisplay} – ${cal.weekEndDisplay}` : 'Current week';
+        renderClassFilter();
+        renderAll();
+        loading.style.display = 'none';
+      } catch (error) {
+        loading.textContent = `Failed to load: ${error.message}`;
+        loading.style.display = 'block';
+      } finally {
+        window.hideLoading();
+      }
+    }
+
+    function renderClassFilter() {
+      const select = document.getElementById('classFilter');
+      const previous = activeClassId;
+      select.innerHTML = '<option value="ALL">All classes</option>';
+      (teacherData.classManagement.classes || []).forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.id;
+        option.textContent = `${item.name}${item.active ? '' : ' (inactive)'}`;
+        select.appendChild(option);
+      });
+      activeClassId = Array.from(select.options).some(option => option.value === previous) ? previous : 'ALL';
+      select.value = activeClassId;
+    }
+    function changeClassFilter(value) {
+      activeClassId = value;
+      const item = selectedClass();
+      if (item) populateClassForm(item);
+      else newClass();
+      resetCourseForm();
+      resetResourceForm();
+      resetProjectGroupForm();
+      resetProjectForm();
+      resetGroupProjectForm();
+      renderAll();
+    }
+    function renderAll() {
+      renderOverview();
+      renderClassManager();
+      renderProjectManager();
+      renderWeeklyBadges();
+      renderBadgeMatrix();
+      renderScores();
+      renderResourceManager();
+      renderClassFeedbackLinkEditor();
+      renderClassExamLinkEditor();
+    }
+
+    function renderOverview() {
+      const data = filteredTrainees();
+      const sessions = filteredCourses().filter(item => item.date === (teacherData.calendar || {}).today && !/^cancelled$/i.test(item.portalStatus));
+      const completed = data.reduce((sum,item) => sum + Number(item.thisWeekCompletedCount || 0), 0);
+      const due = data.reduce((sum,item) => sum + Number(item.thisWeekTotalCount || 0), 0);
+      const noShows = data.filter(item => {
+        const records = (item.attendanceRecords || []).filter(record => activeClassId === 'ALL' || record.classId === activeClassId);
+        return records.some(record => /^no show$/i.test(record.attendance || ''))
+          && !records.some(record => !/^no show$/i.test(record.attendance || ''));
+      }).length;
+      document.getElementById('overviewSummary').innerHTML = `
+        <div class="summary-card"><p class="muted">Students</p><strong>${data.length}</strong></div>
+        <div class="summary-card"><p class="muted">Today’s sessions</p><strong>${sessions.length}</strong></div>
+        <div class="summary-card"><p class="muted">Weekly badges</p><strong>${completed}/${due}</strong></div>
+        <div class="summary-card"><p class="muted">Automatic no-shows</p><strong style="color:${noShows ? 'var(--red)' : 'var(--green)'}">${noShows}</strong></div>`;
+      const grid = document.getElementById('traineeGrid');
+      grid.innerHTML = '';
+      data.forEach(item => {
+        const requirements = [...(item.overdueRequirements || []), ...(item.thisWeekRequirements || [])]
+          .filter((requirement,index,array) => array.findIndex(value => value.trackerColumn === requirement.trackerColumn) === index);
+        const classChips = (item.classIds || []).map(id => `<span class="badge neutral">${escapeHtml(classNameFor(id))}</span>`).join('');
+        const requirementChips = requirements.slice(0,4).map(requirement => `<span class="badge ${requirement.earned ? 'ok' : requirement.status === 'overdue' ? 'bad' : 'wait'}">${requirement.earned ? '✓' : '•'} ${escapeHtml(requirement.name)}</span>`).join('');
+        const daySessions = (item.todaySessions || []).filter(event => activeClassId === 'ALL' || event.classId === activeClassId);
+        const schedule = daySessions.map(event => `<span class="badge ${event.lessonMode === 'Virtual' ? 'virtual' : 'face'}">${escapeHtml(event.attendanceLabel)} ${escapeHtml(event.attendanceTime)}</span>`).join('');
+        const attendanceRecords = (item.attendanceRecords || []).filter(record => activeClassId === 'ALL' || record.classId === activeClassId);
+        const submittedAttendance = attendanceRecords.filter(record => !/^no show$/i.test(record.attendance || ''));
+        const hasAttendance = Boolean(item.email) && submittedAttendance.length > 0;
+        const isNoShow = attendanceRecords.some(record => /^no show$/i.test(record.attendance || '')) && !hasAttendance;
+        const isAcknowledged = hasAttendance && submittedAttendance.every(record => record.acknowledged);
+        let attendance = '<span class="badge neutral">Not checked in</span>';
+        if (!item.email) attendance = '<span class="badge neutral">Tracker only · add to Roster for attendance</span>';
+        else if (!daySessions.length && !hasAttendance) attendance = '<span class="badge neutral">No session today</span>';
+        else if (hasAttendance && !isAcknowledged) attendance = '<span class="badge wait">Pending approval</span>';
+        else if (hasAttendance && isAcknowledged) attendance = '<span class="badge ok">Approved</span>';
+        else if (isNoShow) attendance = '<span class="badge bad">No show</span>';
+        const verify = hasAttendance && !isAcknowledged
+          ? `<button class="btn small green" onclick="acknowledgeAttendance('${escapeHtml(item.email)}','${escapeHtml(activeClassId)}')">Verify</button>`
+          : '<button class="btn small" disabled>Verify</button>';
+        const card = document.createElement('article');
+        card.className = 'card';
+        card.innerHTML = `
+          <h3>${escapeHtml(item.name)}</h3><div class="muted" style="font-size:12px">${escapeHtml(item.email)}</div>
+          <div>${classChips}</div>
+          <div style="margin-top:13px" class="progress"><span style="width:${Number(item.progress)||0}%"></span></div>
+          <div class="progress-copy"><span>Due-date progress ${Number(item.progress)||0}%</span><span>${item.completedCount||0}/${item.totalCount||0}</span></div>
+          <p style="font-size:12px;color:var(--muted)">This week: ${item.thisWeekCompletedCount||0}/${item.thisWeekTotalCount||0}${item.overdueCount ? ` · <b style="color:var(--red)">${item.overdueCount} overdue</b>` : ' · On track'}</p>
+          <div>${requirementChips || '<span class="badge neutral">No badge deadline this week</span>'}</div>
+          <div class="attendance-row"><div>${attendance}<div>${schedule}</div></div>${verify}</div>`;
+        grid.appendChild(card);
+      });
+      if (!data.length) grid.innerHTML = '<p class="empty">No students match this class and search.</p>';
+    }
+
+    function renderClassManager() {
+      const currentClass = selectedClass();
+      if (currentClass) populateClassForm(currentClass);
+      const classList = document.getElementById('classList');
+      classList.innerHTML = '';
+      (teacherData.classManagement.classes || []).forEach(item => {
+        const count = (teacherData.trainees || []).filter(student => (student.classIds || []).includes(item.id)).length;
+        const badgeSummary = item.badgeMode === 'EXPLICIT'
+          ? `${Number(item.badgeRequirementCount || 0)} managed badges`
+          : `badge range ${item.badgeColumns || 'ALL'}`;
+        const row = document.createElement('div');
+        row.className = `list-row class-card ${activeClassId === item.id ? 'selected' : ''}`;
+        row.onclick = () => { activeClassId = item.id; document.getElementById('classFilter').value = item.id; populateClassForm(item); renderAll(); };
+        row.innerHTML = `<div><strong>${escapeHtml(item.name)}</strong><div class="muted" style="font-size:12px">${escapeHtml(item.id)} · ${count} students · ${escapeHtml(badgeSummary)}</div><div><span class="badge ${item.active ? 'ok' : 'neutral'}">${item.active ? 'Active' : 'Inactive'}</span><span class="badge ${item.portalEnabled ? 'ok' : 'bad'}">Portal ${item.portalEnabled ? 'on' : 'off'}</span></div></div><span class="badge neutral">Edit</span>`;
+        classList.appendChild(row);
+      });
+      renderClassBadgeManager();
+      renderMembership();
+      renderTeacherCalendar();
+      renderCourseList();
+    }
+    function populateClassForm(item) {
+      document.getElementById('classId').value = item.id || '';
+      document.getElementById('classId').readOnly = Boolean(item.id);
+      document.getElementById('className').value = item.name || '';
+      document.getElementById('classBadgeColumns').value = item.badgeColumns || 'ALL';
+      document.getElementById('classActive').checked = item.active !== false;
+      document.getElementById('classPortalEnabled').checked = item.portalEnabled !== false;
+      document.getElementById('classAttendanceEnabled').checked = item.attendanceEnabled !== false;
+      document.getElementById('classBadgesEnabled').checked = item.badgesEnabled !== false;
+      document.getElementById('classResourcesEnabled').checked = item.resourcesEnabled !== false;
+      document.getElementById('classMockExamsEnabled').checked = item.mockExamsEnabled !== false;
+    }
+    function newClass() {
+      ['classId','className'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('classBadgeColumns').value = 'ALL';
+      document.getElementById('classId').readOnly = false;
+      ['classActive','classPortalEnabled','classAttendanceEnabled','classBadgesEnabled','classResourcesEnabled','classMockExamsEnabled'].forEach(id => document.getElementById(id).checked = true);
+    }
+    async function saveClass() {
+      try {
+        const result = await postAction('save_class', {
+          classId:document.getElementById('classId').value,
+          className:document.getElementById('className').value,
+          badgeColumns:document.getElementById('classBadgeColumns').value,
+          active:document.getElementById('classActive').checked,
+          portalEnabled:document.getElementById('classPortalEnabled').checked,
+          attendanceEnabled:document.getElementById('classAttendanceEnabled').checked,
+          badgesEnabled:document.getElementById('classBadgesEnabled').checked,
+          resourcesEnabled:document.getElementById('classResourcesEnabled').checked,
+          mockExamsEnabled:document.getElementById('classMockExamsEnabled').checked
+        });
+        teacherData.classManagement = result.data;
+        const savedId = document.getElementById('classId').value.trim().toUpperCase().replace(/[^A-Z0-9_-]+/g,'-');
+        if (savedId) activeClassId = savedId;
+        renderClassFilter();
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    function trackerColumnNumber(value) {
+      return String(value || '').trim().toUpperCase().split('').reduce((total,char) => total * 26 + char.charCodeAt(0) - 64, 0);
+    }
+    function badgeColumnSelectedByRange(column, spec) {
+      const target = trackerColumnNumber(column);
+      const source = String(spec || 'ALL').trim().toUpperCase();
+      if (!source || source === 'ALL' || source === '*') return true;
+      return source.replace(/\s+/g,'').split(/[,;]+/).some(token => {
+        const [first,last] = token.split(':');
+        const start = trackerColumnNumber(first);
+        const end = trackerColumnNumber(last || first);
+        return target >= start && target <= end;
+      });
+    }
+    function renderClassBadgeManager() {
+      const host = document.getElementById('classBadgeRequirementGrid');
+      const hint = document.getElementById('badgeRequirementHint');
+      const saveButton = document.getElementById('saveClassBadgesBtn');
+      const currentClass = selectedClass();
+      const catalog = teacherData.classManagement.badgeCatalog || [];
+      host.innerHTML = '';
+      if (!currentClass) {
+        hint.textContent = 'Choose one class from the filter to manage its required badges.';
+        saveButton.disabled = true;
+        host.innerHTML = '<p class="empty">Badge requirements are managed one class at a time.</p>';
+        return;
+      }
+      saveButton.disabled = false;
+      const explicit = currentClass.badgeMode === 'EXPLICIT';
+      const assignments = explicit
+        ? (currentClass.badgeRequirements || [])
+        : (teacherData.classManagement.badgeAssignments || []).filter(item => item.classId === currentClass.id);
+      const assignmentByColumn = Object.fromEntries(assignments.map(item => [item.trackerColumn,item]));
+      hint.textContent = explicit
+        ? `${currentClass.name} uses an individually managed badge list. Empty override dates use the Tracker due date.`
+        : `${currentClass.name} currently imports ${currentClass.badgeColumns || 'ALL'}. Review the selection and apply it to switch to managed requirements.`;
+      catalog.forEach(item => {
+        const assignment = assignmentByColumn[item.trackerColumn];
+        const checked = explicit ? Boolean(assignment) : badgeColumnSelectedByRange(item.trackerColumn,currentClass.badgeColumns);
+        const row = document.createElement('div');
+        row.className = 'badge-requirement';
+        row.dataset.search = `${item.trackerColumn} ${item.name} ${item.url || ''}`.toLowerCase();
+        row.innerHTML = `
+          <input class="class-badge-choice" type="checkbox" value="${escapeHtml(item.trackerColumn)}" ${checked ? 'checked' : ''}>
+          <span><span class="requirement-name">${escapeHtml(item.name)}</span><span class="requirement-meta">${escapeHtml(item.trackerColumn)} · Tracker due ${escapeHtml(item.dueDateDisplay || 'not set')}${item.url ? ' · linked' : ''}</span></span>
+          <span class="due-override"><label>Class due-date override</label><input class="class-badge-due" type="date" value="${escapeHtml(assignment && assignment.dueDateOverride || '')}"></span>
+          <button class="btn small danger remove-badge" type="button" onclick="event.stopPropagation();removeBadgeDefinition('${escapeHtml(item.badgeId)}','${escapeHtml(item.name)}')">Remove</button>`;
+        host.appendChild(row);
+      });
+      if (!catalog.length) host.innerHTML = '<p class="empty">No active badge definitions were found.</p>';
+      filterClassBadgeRequirements();
+    }
+    function filterClassBadgeRequirements() {
+      const query = (document.getElementById('badgeRequirementSearch').value || '').trim().toLowerCase();
+      document.querySelectorAll('#classBadgeRequirementGrid .badge-requirement').forEach(row => {
+        row.style.display = !query || (row.dataset.search || '').includes(query) ? '' : 'none';
+      });
+    }
+    function setAllClassBadges(selected) {
+      document.querySelectorAll('#classBadgeRequirementGrid .class-badge-choice').forEach(input => { input.checked = selected; });
+    }
+    async function saveClassBadges() {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      const requirements = Array.from(document.querySelectorAll('#classBadgeRequirementGrid .badge-requirement')).filter(row => {
+        return row.querySelector('.class-badge-choice').checked;
+      }).map(row => ({
+        trackerColumn:row.querySelector('.class-badge-choice').value,
+        dueDateOverride:row.querySelector('.class-badge-due').value
+      }));
+      try {
+        const result = await postAction('save_class_badges',{classId:activeClassId,requirements});
+        teacherData.classManagement = result.data;
+        renderClassFilter();
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    async function addBadgeDefinition() {
+      const badgeName = document.getElementById('newBadgeName').value.trim();
+      if (!badgeName) return notify('Enter the badge name.');
+      try {
+        const result = await postAction('save_badge_definition',{
+          badgeName,
+          badgeUrl:document.getElementById('newBadgeUrl').value.trim(),
+          dueDate:document.getElementById('newBadgeDueDate').value
+        });
+        teacherData.classManagement = result.data;
+        document.getElementById('newBadgeName').value = '';
+        document.getElementById('newBadgeUrl').value = '';
+        document.getElementById('newBadgeDueDate').value = '';
+        renderClassFilter();
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    async function removeBadgeDefinition(badgeId,badgeName) {
+      if (!confirm(`Remove "${badgeName}" from the portal and every class?\n\nExisting tracker completion data will be preserved.`)) return;
+      try {
+        const result = await postAction('archive_badge_definition',{badgeId});
+        teacherData.classManagement = result.data;
+        renderClassFilter();
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    function renderMembership() {
+      const host = document.getElementById('memberGrid');
+      const button = document.getElementById('saveMembersBtn');
+      const hint = document.getElementById('membershipHint');
+      host.innerHTML = '';
+      if (activeClassId === 'ALL') {
+        hint.textContent = 'Choose one class from the filter to assign students.';
+        button.disabled = true;
+        host.innerHTML = '<p class="empty">Membership is managed one class at a time.</p>';
+        return;
+      }
+      button.disabled = false;
+      hint.textContent = `Students assigned to ${classNameFor(activeClassId)}.`;
+      const membershipRows = (teacherData.classManagement.memberships || []).filter(item => item.classId === activeClassId);
+      (teacherData.classManagement.roster || []).forEach(person => {
+        const explicit = membershipRows.find(item => item.email === person.email);
+        const checked = explicit ? explicit.active : activeClassId === 'DEFAULT';
+        const label = document.createElement('label');
+        label.className = 'member';
+        label.innerHTML = `<input type="checkbox" value="${escapeHtml(person.email)}" ${checked ? 'checked' : ''}><span><strong>${escapeHtml(person.name)}</strong><small class="muted" style="display:block">${escapeHtml(person.email)}</small></span>`;
+        host.appendChild(label);
+      });
+    }
+    async function saveClassMembers() {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      const memberEmails = Array.from(document.querySelectorAll('#memberGrid input:checked')).map(input => input.value);
+      try {
+        const result = await postAction('save_class_members', { classId:activeClassId, memberEmails });
+        teacherData.classManagement = result.data;
+        await loadData();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+
+    function projectClassRows(key) {
+      return (teacherData.classManagement[key] || []).filter(item => activeClassId === 'ALL' || item.classId === activeClassId);
+    }
+    function resetProjectGroupForm() {
+      document.getElementById('projectGroupId').value = '';
+      document.getElementById('projectGroupId').readOnly = false;
+      document.getElementById('projectGroupName').value = '';
+      document.getElementById('projectGroupNotes').value = '';
+      document.getElementById('projectGroupActive').checked = true;
+    }
+    function editProjectGroup(groupId) {
+      const item = projectClassRows('projectGroups').find(group => group.id === groupId);
+      if (!item) return;
+      document.getElementById('projectGroupId').value = item.id;
+      document.getElementById('projectGroupId').readOnly = true;
+      document.getElementById('projectGroupName').value = item.name || '';
+      document.getElementById('projectGroupNotes').value = item.notes || '';
+      document.getElementById('projectGroupActive').checked = item.active !== false;
+    }
+    async function saveProjectGroup() {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      try {
+        const result = await postAction('save_project_group', {
+          classId:activeClassId,
+          groupId:document.getElementById('projectGroupId').value,
+          groupName:document.getElementById('projectGroupName').value,
+          notes:document.getElementById('projectGroupNotes').value,
+          active:document.getElementById('projectGroupActive').checked
+        });
+        teacherData.classManagement = result.data;
+        resetProjectGroupForm();
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    async function saveProjectGroupAssignments() {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      const assignments = Array.from(document.querySelectorAll('#projectGroupAssignmentGrid .project-group-assignment')).filter(select => select.value).map(select => ({
+        email:select.dataset.email,
+        name:select.dataset.name,
+        groupId:select.value,
+        role:'Member'
+      }));
+      try {
+        const result = await postAction('save_project_group_assignments', { classId:activeClassId, assignments });
+        teacherData.classManagement = result.data;
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    function resetProjectForm() {
+      document.getElementById('projectId').value = '';
+      document.getElementById('projectId').readOnly = false;
+      document.getElementById('projectName').value = '';
+      document.getElementById('projectType').value = 'Final Project';
+      document.getElementById('projectDueDate').value = '';
+      document.getElementById('projectDescription').value = '';
+      document.getElementById('projectRequirements').value = 'Deck: solution architecture diagram, key business points, technical evaluation, assumptions and cost table.\nProof of Concept: at least 3 working features, including AI and Agentic AI / Gemini Enterprise where applicable.\nInclude the future-state design. Prepare a 30-minute presentation and 10-minute Q&A.\nDo not exceed the US$300 free credit; stop cloud services when not in use.';
+      document.getElementById('projectMinimumFeatures').value = 3;
+      document.getElementById('projectCreditLimit').value = 300;
+      document.getElementById('projectPresentationMinutes').value = 30;
+      document.getElementById('projectQaMinutes').value = 10;
+      document.getElementById('projectPublished').checked = true;
+      document.getElementById('projectPeerEvaluation').checked = true;
+    }
+    function editProjectDefinition(projectId) {
+      const item = projectClassRows('projects').find(project => project.id === projectId);
+      if (!item) return;
+      document.getElementById('projectId').value = item.id;
+      document.getElementById('projectId').readOnly = true;
+      document.getElementById('projectName').value = item.name || '';
+      document.getElementById('projectType').value = item.type || 'Final Project';
+      document.getElementById('projectDueDate').value = item.dueDate || '';
+      document.getElementById('projectDescription').value = item.description || '';
+      document.getElementById('projectRequirements').value = item.submissionRequirements || '';
+      document.getElementById('projectMinimumFeatures').value = item.minimumWorkingFeatures || 0;
+      document.getElementById('projectCreditLimit').value = item.creditLimit || 0;
+      document.getElementById('projectPresentationMinutes').value = item.presentationMinutes || 0;
+      document.getElementById('projectQaMinutes').value = item.qaMinutes || 0;
+      document.getElementById('projectPublished').checked = item.published !== false;
+      document.getElementById('projectPeerEvaluation').checked = item.peerEvaluationEnabled !== false;
+    }
+    async function saveProjectDefinition() {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      try {
+        const result = await postAction('save_project', {
+          classId:activeClassId,
+          projectId:document.getElementById('projectId').value,
+          projectName:document.getElementById('projectName').value,
+          projectType:document.getElementById('projectType').value,
+          dueDate:document.getElementById('projectDueDate').value,
+          description:document.getElementById('projectDescription').value,
+          submissionRequirements:document.getElementById('projectRequirements').value,
+          minimumWorkingFeatures:Number(document.getElementById('projectMinimumFeatures').value || 0),
+          creditLimit:Number(document.getElementById('projectCreditLimit').value || 0),
+          presentationMinutes:Number(document.getElementById('projectPresentationMinutes').value || 0),
+          qaMinutes:Number(document.getElementById('projectQaMinutes').value || 0),
+          published:document.getElementById('projectPublished').checked,
+          peerEvaluationEnabled:document.getElementById('projectPeerEvaluation').checked
+        });
+        teacherData.classManagement = result.data;
+        resetProjectForm();
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    function resetGroupProjectForm() {
+      document.getElementById('groupProjectUseCase').value = '';
+      document.getElementById('groupProjectBriefUrl').value = '';
+      document.getElementById('groupProjectTrialAccount').value = '';
+      document.getElementById('groupProjectConsoleUrl').value = '';
+      document.getElementById('groupProjectPresentationOrder').value = '';
+      document.getElementById('groupProjectNotes').value = '';
+      document.getElementById('groupProjectActive').checked = true;
+    }
+    function editGroupProjectAssignment(assignmentId) {
+      const item = projectClassRows('groupProjects').find(assignment => assignment.assignmentId === assignmentId);
+      if (!item) return;
+      document.getElementById('groupProjectGroup').value = item.groupId;
+      document.getElementById('groupProjectProject').value = item.projectId;
+      document.getElementById('groupProjectUseCase').value = item.useCase || '';
+      document.getElementById('groupProjectBriefUrl').value = item.briefUrl || '';
+      document.getElementById('groupProjectTrialAccount').value = item.trialAccount || '';
+      document.getElementById('groupProjectConsoleUrl').value = item.consoleUrl || '';
+      document.getElementById('groupProjectPresentationOrder').value = item.presentationOrder || '';
+      document.getElementById('groupProjectNotes').value = item.notes || '';
+      document.getElementById('groupProjectActive').checked = item.active !== false;
+    }
+    async function saveGroupProjectAssignment() {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      try {
+        const result = await postAction('save_group_project', {
+          classId:activeClassId,
+          groupId:document.getElementById('groupProjectGroup').value,
+          projectId:document.getElementById('groupProjectProject').value,
+          useCase:document.getElementById('groupProjectUseCase').value,
+          briefUrl:document.getElementById('groupProjectBriefUrl').value,
+          trialAccount:document.getElementById('groupProjectTrialAccount').value,
+          consoleUrl:document.getElementById('groupProjectConsoleUrl').value,
+          presentationOrder:document.getElementById('groupProjectPresentationOrder').value,
+          notes:document.getElementById('groupProjectNotes').value,
+          active:document.getElementById('groupProjectActive').checked
+        });
+        teacherData.classManagement = result.data;
+        resetGroupProjectForm();
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    function renderProjectManager() {
+      const hint = document.getElementById('projectAdminHint');
+      if (!hint) return;
+      const disabled = activeClassId === 'ALL';
+      ['saveProjectGroupBtn','saveProjectGroupAssignmentsBtn','saveProjectBtn','saveGroupProjectBtn'].forEach(id => { document.getElementById(id).disabled = disabled; });
+      const groupList = document.getElementById('projectGroupList');
+      const assignmentGrid = document.getElementById('projectGroupAssignmentGrid');
+      const projectList = document.getElementById('projectDefinitionList');
+      const groupProjectList = document.getElementById('groupProjectList');
+      const submissionList = document.getElementById('projectSubmissionList');
+      const summary = document.getElementById('projectSubmissionSummary');
+      groupList.innerHTML = assignmentGrid.innerHTML = projectList.innerHTML = groupProjectList.innerHTML = submissionList.innerHTML = summary.innerHTML = '';
+      if (disabled) {
+        hint.textContent = 'Choose one class from the class filter to manage its groups and projects.';
+        [groupList,assignmentGrid,projectList,groupProjectList,submissionList].forEach(host => host.innerHTML = '<p class="empty">Project management is class-specific.</p>');
+        document.getElementById('groupProjectGroup').innerHTML = '<option value="">Choose a class first</option>';
+        document.getElementById('groupProjectProject').innerHTML = '<option value="">Choose a class first</option>';
+        return;
+      }
+      hint.textContent = `Managing groups and projects for ${classNameFor(activeClassId)}.`;
+      const groups = projectClassRows('projectGroups');
+      const activeGroups = groups.filter(item => item.active);
+      const members = projectClassRows('projectGroupMembers').filter(item => item.active);
+      const projects = projectClassRows('projects');
+      const groupProjects = projectClassRows('groupProjects');
+      const submissions = projectClassRows('projectSubmissions');
+      const evaluations = projectClassRows('peerEvaluations');
+      const memberByEmail = Object.fromEntries(members.map(item => [item.email,item]));
+      groups.forEach(item => {
+        const count = members.filter(member => member.groupId === item.id).length;
+        const row = document.createElement('div');
+        row.className = 'list-row';
+        row.innerHTML = `<div><strong>${escapeHtml(item.name)}</strong><div class="muted" style="font-size:12px">${escapeHtml(item.id)} · ${count} students</div><span class="badge ${item.active ? 'ok' : 'neutral'}">${item.active ? 'Active' : 'Inactive'}</span></div><button class="btn small secondary" type="button">Edit</button>`;
+        row.querySelector('button').onclick = () => editProjectGroup(item.id);
+        groupList.appendChild(row);
+      });
+      if (!groups.length) groupList.innerHTML = '<p class="empty">No project groups created yet.</p>';
+      const classMemberships = (teacherData.classManagement.memberships || []).filter(item => item.classId === activeClassId);
+      const roster = teacherData.classManagement.roster || [];
+      const eligible = classMemberships.length
+        ? roster.filter(person => classMemberships.some(item => item.email === person.email && item.active))
+        : (activeClassId === 'DEFAULT' ? roster : []);
+      eligible.forEach(person => {
+        const row = document.createElement('div');
+        row.className = 'project-assignment-row';
+        const current = memberByEmail[person.email];
+        row.innerHTML = `<span><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.email)}</small></span><select class="project-group-assignment" data-email="${escapeHtml(person.email)}" data-name="${escapeHtml(person.name)}"><option value="">No group</option>${activeGroups.map(group => `<option value="${escapeHtml(group.id)}" ${current && current.groupId === group.id ? 'selected' : ''}>${escapeHtml(group.name)}</option>`).join('')}</select><span class="badge ${current ? 'ok' : 'neutral'}">${current ? escapeHtml(current.role || 'Member') : 'Unassigned'}</span>`;
+        assignmentGrid.appendChild(row);
+      });
+      if (!eligible.length) assignmentGrid.innerHTML = '<p class="empty">Add students to this class before assigning project groups.</p>';
+      projects.forEach(item => {
+        const assignments = groupProjects.filter(value => value.projectId === item.id).length;
+        const row = document.createElement('div');
+        row.className = 'list-row';
+        row.innerHTML = `<div><strong>${escapeHtml(item.name)}</strong><div class="muted" style="font-size:12px">${escapeHtml(item.id)} · ${escapeHtml(item.type)} · Due ${escapeHtml(item.dueDateDisplay || 'not set')} · ${assignments} groups</div><div><span class="badge ${item.published ? 'ok' : 'wait'}">${item.published ? 'Published' : 'Draft'}</span><span class="badge ${item.peerEvaluationEnabled ? 'ok' : 'neutral'}">Peer evaluation ${item.peerEvaluationEnabled ? 'on' : 'off'}</span></div></div><button class="btn small secondary" type="button">Edit</button>`;
+        row.querySelector('button').onclick = () => editProjectDefinition(item.id);
+        projectList.appendChild(row);
+      });
+      if (!projects.length) projectList.innerHTML = '<p class="empty">No project definitions created yet.</p>';
+      document.getElementById('groupProjectGroup').innerHTML = '<option value="">Select group</option>' + activeGroups.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
+      document.getElementById('groupProjectProject').innerHTML = '<option value="">Select project</option>' + projects.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
+      const groupById = Object.fromEntries(groups.map(item => [item.id,item]));
+      const projectById = Object.fromEntries(projects.map(item => [item.id,item]));
+      groupProjects.forEach(item => {
+        const submissionCount = submissions.filter(value => value.assignmentId === item.assignmentId).length;
+        const evaluationCount = evaluations.filter(value => value.assignmentId === item.assignmentId).length;
+        const row = document.createElement('div');
+        row.className = 'list-row';
+        row.innerHTML = `<div><strong>${escapeHtml((groupById[item.groupId] || {}).name || item.groupId)} → ${escapeHtml((projectById[item.projectId] || {}).name || item.projectId)}</strong><div class="muted" style="font-size:12px">${escapeHtml(item.useCase || 'No use case entered')}${item.presentationOrder ? ` · Presentation ${escapeHtml(item.presentationOrder)}` : ''}</div><div class="project-stat-grid"><span class="project-stat"><b>${submissionCount}</b>submissions</span><span class="project-stat"><b>${evaluationCount}</b>peer reviews</span><span class="project-stat"><b>${item.active ? 'On' : 'Off'}</b>assignment</span></div></div><button class="btn small secondary" type="button">Edit</button>`;
+        row.querySelector('button').onclick = () => editGroupProjectAssignment(item.assignmentId);
+        groupProjectList.appendChild(row);
+      });
+      if (!groupProjects.length) groupProjectList.innerHTML = '<p class="empty">No projects assigned to groups yet.</p>';
+      summary.innerHTML = `<div class="summary-card"><p class="muted">Active groups</p><strong>${activeGroups.length}</strong></div><div class="summary-card"><p class="muted">Assigned students</p><strong>${members.length}</strong></div><div class="summary-card"><p class="muted">Submissions</p><strong>${submissions.length}</strong></div><div class="summary-card"><p class="muted">Peer evaluations</p><strong>${evaluations.length}</strong></div>`;
+      submissions.slice(0,20).forEach(item => {
+        const assignment = groupProjects.find(value => value.assignmentId === item.assignmentId) || {};
+        const row = document.createElement('div');
+        row.className = 'list-row';
+        const links = [['Submission',item.submissionUrl],['Deck',item.deckUrl],['Demo',item.demoUrl],['Repository',item.repositoryUrl]].filter(value => value[1]).map(value => `<a class="badge neutral" href="${escapeHtml(value[1])}" target="_blank" rel="noopener">${value[0]}</a>`).join('');
+        row.innerHTML = `<div><strong>${escapeHtml((groupById[item.groupId] || {}).name || item.groupId)} · ${escapeHtml((projectById[item.projectId] || {}).name || item.projectId)}</strong><div class="muted" style="font-size:12px">Submitted by ${escapeHtml(item.submittedByName || item.submittedByEmail)} · ${escapeHtml(item.status || 'Submitted')}</div><div>${links || '<span class="badge neutral">No links</span>'}</div></div><span class="badge ok">${escapeHtml(item.submittedAt ? new Date(item.submittedAt).toLocaleDateString('en-SG') : 'Submitted')}</span>`;
+        submissionList.appendChild(row);
+      });
+      if (!submissions.length) submissionList.innerHTML = '<p class="empty">No group submissions have been recorded yet.</p>';
+      if (evaluations.length) {
+        const heading = document.createElement('h3');
+        heading.style.marginTop = '22px';
+        heading.textContent = 'Recent peer evaluations';
+        submissionList.appendChild(heading);
+        evaluations.slice().sort((left,right) => (new Date(right.updatedAt).getTime() || 0) - (new Date(left.updatedAt).getTime() || 0)).slice(0,20).forEach(item => {
+          const average = [item.contribution,item.collaboration,item.communication,item.reliability,item.technicalContribution].reduce((sum,value) => sum + Number(value || 0),0) / 5;
+          const row = document.createElement('div');
+          row.className = 'list-row';
+          row.innerHTML = `<div><strong>${escapeHtml(item.evaluatorName || item.evaluatorEmail)} → ${escapeHtml(item.evaluateeName || item.evaluateeEmail)}</strong><div class="muted" style="font-size:12px">${escapeHtml((groupById[item.groupId] || {}).name || item.groupId)} · ${escapeHtml((projectById[item.projectId] || {}).name || item.projectId)}</div>${item.comments ? `<p style="margin:7px 0 0;font-size:12px">${escapeHtml(item.comments)}</p>` : ''}</div><span class="badge ${average >= 4 ? 'ok' : average >= 3 ? 'wait' : 'bad'}">${average.toFixed(1)} / 5</span>`;
+          submissionList.appendChild(row);
+        });
+      }
+    }
+
+    function localDateKey(date) {
+      return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    }
+    function changeTeacherMonth(offset) {
+      const date = new Date(`${teacherMonthKey}-01T12:00:00`);
+      date.setMonth(date.getMonth() + Number(offset || 0));
+      teacherMonthKey = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
+      renderTeacherCalendar();
+    }
+    function renderTeacherCalendar() {
+      const host = document.getElementById('teacherCalendar');
+      const monthStart = new Date(`${teacherMonthKey}-01T12:00:00`);
+      document.getElementById('teacherMonthLabel').textContent = monthStart.toLocaleDateString('en-SG',{month:'long',year:'numeric'});
+      const mondayOffset = (monthStart.getDay()+6)%7;
+      const gridStart = new Date(monthStart);
+      gridStart.setDate(1-mondayOffset);
+      const courses = filteredCourses();
+      const today = localDateKey(new Date());
+      host.innerHTML = '';
+      for (let index=0; index<42; index++) {
+        const date = new Date(gridStart);
+        date.setDate(gridStart.getDate()+index);
+        const key = localDateKey(date);
+        const day = document.createElement('div');
+        day.className = `calendar-day ${date.getMonth() === monthStart.getMonth() ? '' : 'outside'} ${key === today ? 'today' : ''}`;
+        day.innerHTML = `<strong style="font-size:11px">${date.getDate()}</strong>`;
+        courses.filter(item => item.date === key).slice(0,3).forEach(item => {
+          const pill = document.createElement('button');
+          pill.type = 'button';
+          pill.className = `calendar-pill ${item.lessonMode === 'Virtual' ? 'virtual' : 'face'}`;
+          pill.textContent = lessonModeLabel(item.lessonMode);
+          pill.title = `${lessonModeLabel(item.lessonMode)} · Click to edit this session`;
+          pill.onclick = () => editCourse(item.courseId);
+          day.appendChild(pill);
+        });
+        host.appendChild(day);
+      }
+    }
+    function applySessionDefaults() {
+      const morning = document.getElementById('courseSession').value === 'Morning';
+      document.getElementById('courseAttendanceTime').value = morning ? '09:00' : '13:00';
+      document.getElementById('courseOpens').value = morning ? '08:30' : '12:30';
+      document.getElementById('courseAttendanceLabel').value = morning ? 'Lesson start' : 'Lesson end';
+    }
+    function resetCourseForm() {
+      document.getElementById('editingCourseId').value = '';
+      ['courseId','courseTitle','courseDate','courseDescription'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('courseId').readOnly = false;
+      document.getElementById('courseMode').value = 'Face to face';
+      document.getElementById('courseStart').value = '09:00';
+      document.getElementById('courseSession').value = 'Morning';
+      document.getElementById('courseStatus').value = 'Published';
+      document.getElementById('courseAttendanceEnabled').checked = true;
+      applySessionDefaults();
+    }
+    function editCourse(courseId) {
+      const item = (teacherData.classManagement.courses || []).find(course => course.courseId === courseId);
+      if (!item) return;
+      activeClassId = item.classId;
+      document.getElementById('classFilter').value = item.classId;
+      const classItem = selectedClass();
+      if (classItem) populateClassForm(classItem);
+      document.getElementById('editingCourseId').value = item.courseId;
+      document.getElementById('courseId').value = item.courseId;
+      document.getElementById('courseId').readOnly = true;
+      document.getElementById('courseTitle').value = item.course;
+      document.getElementById('courseMode').value = item.lessonMode === 'Virtual' ? 'Virtual' : 'Face to face';
+      document.getElementById('courseDate').value = item.date;
+      document.getElementById('courseStart').value = item.courseStartTime;
+      document.getElementById('courseSession').value = item.session;
+      document.getElementById('courseAttendanceTime').value = item.attendanceTime;
+      document.getElementById('courseOpens').value = item.checkInOpens;
+      document.getElementById('courseAttendanceLabel').value = item.attendanceLabel;
+      document.getElementById('courseStatus').value = item.portalStatus;
+      document.getElementById('courseDescription').value = item.description;
+      document.getElementById('courseAttendanceEnabled').checked = item.attendanceEnabled;
+      renderAll();
+      document.getElementById('courseTitle').scrollIntoView({behavior:'smooth',block:'center'});
+    }
+    async function saveCourse() {
+      if (activeClassId === 'ALL') return notify('Choose a class before saving a session.');
+      try {
+        const result = await postAction('save_course', {
+          classId:activeClassId,
+          courseId:document.getElementById('courseId').value,
+          course:document.getElementById('courseTitle').value,
+          lessonMode:document.getElementById('courseMode').value,
+          date:document.getElementById('courseDate').value,
+          startTime:document.getElementById('courseStart').value,
+          session:document.getElementById('courseSession').value,
+          attendanceTime:document.getElementById('courseAttendanceTime').value,
+          checkInOpens:document.getElementById('courseOpens').value,
+          attendanceLabel:document.getElementById('courseAttendanceLabel').value,
+          portalStatus:document.getElementById('courseStatus').value,
+          description:document.getElementById('courseDescription').value,
+          attendanceEnabled:document.getElementById('courseAttendanceEnabled').checked
+        });
+        teacherData.classManagement = result.data;
+        resetCourseForm();
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    async function archiveCourse(courseId) {
+      if (!confirm('Cancel this class session? It will remain visible as cancelled.')) return;
+      try {
+        const result = await postAction('archive_course',{courseId});
+        teacherData.classManagement = result.data;
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    function renderCourseList() {
+      const host = document.getElementById('courseList');
+      const courses = filteredCourses().slice().sort((a,b) => b.date.localeCompare(a.date));
+      host.innerHTML = '';
+      courses.slice(0,50).forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'list-row';
+        row.innerHTML = `<div><strong>${escapeHtml(item.course)}</strong><div class="muted" style="font-size:12px">${escapeHtml(item.dateDisplay)} · ${escapeHtml(item.attendanceTime)} · ${escapeHtml(classNameFor(item.classId))}</div><span class="badge ${item.lessonMode === 'Virtual' ? 'virtual' : 'face'}">${escapeHtml(lessonModeLabel(item.lessonMode))}</span><span class="badge ${/^published$/i.test(item.portalStatus) ? 'ok' : /^cancelled$/i.test(item.portalStatus) ? 'bad' : 'neutral'}">${escapeHtml(item.portalStatus)}</span></div><div class="actions"><button class="btn small secondary" onclick="editCourse('${escapeHtml(item.courseId)}')">Edit</button><button class="btn small danger" onclick="archiveCourse('${escapeHtml(item.courseId)}')">Cancel</button></div>`;
+        host.appendChild(row);
+      });
+      if (!courses.length) host.innerHTML = '<p class="empty">No class sessions in this scope.</p>';
+    }
+
+    function weeklyDefinitions(data) {
+      const first = data.find(item => Array.isArray(item.requirements) && item.requirements.length);
+      if (!first) return [];
+      const start = first.weekStart;
+      const end = first.weekEnd;
+      return first.requirements.filter(item => item.dueDate && item.dueDate >= start && item.dueDate <= end);
+    }
+    function renderWeeklyBadges() {
+      const data = filteredTrainees();
+      const definitions = weeklyDefinitions(data);
+      const host = document.getElementById('weeklyBadgeSummary');
+      const first = data[0];
+      document.getElementById('badgeWeekText').textContent = first && first.weekStartDisplay ? `Week of ${first.weekStartDisplay} – ${first.weekEndDisplay}` : 'No due-date schedule is available.';
+      host.innerHTML = '';
+      definitions.forEach(definition => {
+        const completed = data.filter(student => {
+          const requirement = (student.requirements || []).find(item => item.trackerColumn === definition.trackerColumn);
+          return requirement && requirement.earned;
+        }).length;
+        const percent = data.length ? Math.round(completed/data.length*100) : 0;
+        const card = document.createElement('article');
+        card.className = 'card';
+        card.innerHTML = `<h3>${escapeHtml(definition.name)}</h3><p class="muted" style="font-size:12px">Due ${escapeHtml(definition.dueDateDisplay || definition.dueDate)}</p><div class="progress" style="margin-top:14px"><span style="width:${percent}%"></span></div><div class="progress-copy"><span>${completed}/${data.length} complete</span><strong>${percent}%</strong></div>`;
+        host.appendChild(card);
+      });
+      if (!definitions.length) host.innerHTML = '<p class="empty">No badge requirements are due in this week.</p>';
+    }
+    function renderBadgeMatrix() {
+      const host = document.getElementById('badgeMatrix');
+      const data = filteredTrainees();
+      const first = data.find(item => Array.isArray(item.requirements) && item.requirements.length);
+      let definitions = first ? first.requirements : [];
+      if (document.getElementById('badgeScope').value === 'week' && first) {
+        definitions = definitions.filter(item => item.status === 'overdue' || (item.dueDate && item.dueDate >= first.weekStart && item.dueDate <= first.weekEnd));
+      }
+      if (!definitions.length) {
+        host.innerHTML = '<p class="empty">No badge columns match this view.</p>';
+        return;
+      }
+      let html = '<table><thead><tr><th>Student</th>';
+      definitions.forEach(item => {
+        html += `<th class="badge-column" title="${escapeHtml(item.name)}"><span class="cut">${escapeHtml(item.trackerColumn)} · ${escapeHtml(item.name)}</span><small>${escapeHtml(item.dueDateDisplay || '')}</small></th>`;
+      });
+      html += '</tr></thead><tbody>';
+      data.forEach(student => {
+        html += `<tr><td><b>${escapeHtml(student.name)}</b><br><span class="muted">${escapeHtml(student.email)}</span></td>`;
+        definitions.forEach(definition => {
+          const item = (student.requirements || []).find(requirement => requirement.trackerColumn === definition.trackerColumn) || definition;
+          const css = item.earned ? 'matrix-ok' : item.status === 'overdue' ? 'matrix-miss' : 'matrix-future';
+          html += `<td class="${css}" title="${escapeHtml(item.status)}">${item.earned ? '✓' : item.status === 'overdue' ? '!' : '—'}</td>`;
+        });
+        html += '</tr>';
+      });
+      host.innerHTML = `${html}</tbody></table>`;
+    }
+
+    function renderScores() {
+      const rows = (teacherData.mockScores.rows || []).filter(item => activeClassId === 'ALL' || (item.classIds || []).includes(activeClassId));
+      const scores1 = rows.map(item => item.mock1).filter(Number.isFinite);
+      const scores2 = rows.map(item => item.mock2).filter(Number.isFinite);
+      const average = values => values.length ? Math.round(values.reduce((sum,value) => sum+value,0)/values.length*10)/10 : '—';
+      const submitted = rows.filter(item => Number.isFinite(item.average)).length;
+      document.getElementById('scoreSummary').innerHTML = `
+        <div class="summary-card"><p class="muted">Mock 1 average</p><strong>${average(scores1)}</strong></div>
+        <div class="summary-card"><p class="muted">Mock 2 average</p><strong>${average(scores2)}</strong></div>
+        <div class="summary-card"><p class="muted">Students submitted</p><strong>${submitted}/${rows.length}</strong></div>
+        <div class="summary-card"><p class="muted">Highest average</p><strong>${rows.length && Number.isFinite(rows[0].average) ? rows[0].average : '—'}</strong></div>`;
+      let html = '<table><thead><tr><th>Student</th><th>Mock Exam 1</th><th>Mock Exam 2</th><th>Average</th><th>Attempts</th><th>Latest evidence</th></tr></thead><tbody>';
+      rows.forEach(item => {
+        const evidence = item.latest && item.latest.resultUrl ? `<a href="${escapeHtml(item.latest.resultUrl)}" target="_blank" rel="noopener">Open</a>` : '—';
+        html += `<tr><td><b>${escapeHtml(item.name)}</b><br><span class="muted">${escapeHtml(item.email)}</span></td><td>${Number.isFinite(item.mock1) ? item.mock1 : '—'}</td><td>${Number.isFinite(item.mock2) ? item.mock2 : '—'}</td><td><b>${Number.isFinite(item.average) ? item.average : '—'}</b></td><td>${item.attempts || 0}</td><td>${evidence}</td></tr>`;
+      });
+      document.getElementById('scoreTable').innerHTML = rows.length ? `${html}</tbody></table>` : '<p class="empty">No students in this class.</p>';
+    }
+
+    function fileAsBase64(file) {
+      return new Promise((resolve,reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1]);
+        reader.onerror = () => reject(new Error('The selected file could not be read.'));
+        reader.readAsDataURL(file);
+      });
+    }
+    function resetResourceForm() {
+      document.getElementById('resourceId').value = '';
+      ['resourceTitle','resourceUrl','resourceDescription'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('resourceFile').value = '';
+      document.getElementById('resourcePublished').checked = true;
+      document.getElementById('resourceWeekStart').value = (teacherData.calendar || {}).weekStart || new Date().toISOString().slice(0,10);
+    }
+    function renderResourceManager() {
+      const courseSelect = document.getElementById('resourceCourseId');
+      const currentValue = courseSelect.value;
+      courseSelect.innerHTML = '<option value="">General / all sessions</option>';
+      filteredCourses().forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.courseId;
+        option.textContent = `${item.dateDisplay} · ${item.course}`;
+        courseSelect.appendChild(option);
+      });
+      if (Array.from(courseSelect.options).some(option => option.value === currentValue)) courseSelect.value = currentValue;
+      if (!document.getElementById('resourceWeekStart').value) resetResourceForm();
+      const host = document.getElementById('resourceHistory');
+      const resources = (teacherData.resourceHistory || []).filter(item => activeClassId === 'ALL' || item.classId === activeClassId);
+      host.innerHTML = '';
+      resources.forEach(item => {
+        const statusClass = item.scheduleStatus === 'current' ? 'ok' : item.scheduleStatus === 'archived' ? 'bad' : item.scheduleStatus === 'scheduled' ? 'wait' : 'neutral';
+        const row = document.createElement('div');
+        row.className = 'list-row';
+        const fallbackOpen = !item.url && !item.fileUrl && item.openUrl
+          ? `<a class="btn small secondary" href="${escapeHtml(item.openUrl)}" target="_blank" rel="noopener">Open resource</a>`
+          : '';
+        row.innerHTML = `<div><strong>${escapeHtml(item.title)}</strong><div class="muted" style="font-size:12px">${escapeHtml(item.weekStartDisplay || item.weekStart)} · ${escapeHtml(classNameFor(item.classId))} · ${escapeHtml(item.courseId || 'General')}</div><span class="badge ${statusClass}">${escapeHtml(item.scheduleStatus)}</span><span class="badge ${item.published ? 'ok' : 'neutral'}">${item.published ? 'Published' : 'Draft'}</span>${item.url ? '<span class="badge neutral">🔗 Link</span>' : ''}${item.fileName ? `<span class="badge neutral">📎 ${escapeHtml(item.fileName)}</span>` : ''}<p style="margin:7px 0 0;font-size:13px">${escapeHtml(item.description)}</p></div><div class="actions"><button class="btn small secondary" onclick="editResource('${escapeHtml(item.id)}')">Edit</button>${item.url ? `<a class="btn small secondary" href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Open link</a>` : ''}${item.fileUrl ? `<a class="btn small secondary" href="${escapeHtml(item.fileUrl)}" target="_blank" rel="noopener">Open file</a>` : ''}${fallbackOpen}${item.archived ? '' : `<button class="btn small danger" onclick="archiveResource('${escapeHtml(item.id)}')">Archive</button>`}</div>`;
+        host.appendChild(row);
+      });
+      if (!resources.length) host.innerHTML = '<p class="empty">No resource history in this class scope.</p>';
+    }
+    function editResource(id) {
+      const item = (teacherData.resourceHistory || []).find(resource => resource.id === id);
+      if (!item) return;
+      activeClassId = item.classId;
+      document.getElementById('classFilter').value = item.classId;
+      const classItem = selectedClass();
+      if (classItem) populateClassForm(classItem);
+      document.getElementById('resourceId').value = item.id;
+      document.getElementById('resourceWeekStart').value = item.weekStart;
+      document.getElementById('resourceTitle').value = item.title;
+      document.getElementById('resourceUrl').value = item.url;
+      document.getElementById('resourceDescription').value = item.description;
+      document.getElementById('resourcePublished').checked = item.published;
+      renderAll();
+      if (Array.from(document.getElementById('resourceCourseId').options).some(option => option.value === item.courseId)) {
+        document.getElementById('resourceCourseId').value = item.courseId;
+      }
+      switchTeacherView('resources');
+      document.getElementById('resourceTitle').scrollIntoView({behavior:'smooth',block:'center'});
+    }
+    async function saveWeeklyResource() {
+      if (activeClassId === 'ALL') return notify('Choose one class before scheduling a resource.');
+      const file = document.getElementById('resourceFile').files[0];
+      if (file && file.size > 8*1024*1024) return notify('Resource attachment must be 8 MB or smaller.');
+      try {
+        const payload = {
+          classId:activeClassId,
+          resourceId:document.getElementById('resourceId').value,
+          weekStart:document.getElementById('resourceWeekStart').value,
+          courseId:document.getElementById('resourceCourseId').value,
+          title:document.getElementById('resourceTitle').value,
+          url:document.getElementById('resourceUrl').value,
+          description:document.getElementById('resourceDescription').value,
+          published:document.getElementById('resourcePublished').checked
+        };
+        if (file) Object.assign(payload,{fileName:file.name,mimeType:file.type,fileData:await fileAsBase64(file)});
+        const result = await postAction('save_weekly_resource',payload);
+        teacherData.resourceHistory = result.data.history || [];
+        resetResourceForm();
+        renderResourceManager();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    async function archiveResource(resourceId) {
+      if (!confirm('Archive this weekly resource? It will remain in resource history.')) return;
+      try {
+        const result = await postAction('delete_weekly_resource',{resourceId});
+        const otherClasses = (teacherData.resourceHistory || []).filter(item => item.classId !== activeClassId);
+        teacherData.resourceHistory = otherClasses.concat(result.data.history || []);
+        renderResourceManager();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+
+    function renderClassFeedbackLinkEditor() {
+      const host = document.getElementById('classFeedbackLinkEditor');
+      const hint = document.getElementById('classFeedbackLinkHint');
+      const button = document.getElementById('saveClassFeedbackLinksBtn');
+      host.innerHTML = '';
+      if (activeClassId === 'ALL') {
+        hint.textContent = 'Choose one class from the class filter to manage its feedback-form links.';
+        button.disabled = true;
+        host.innerHTML = '<p class="empty">Feedback links are managed one class at a time.</p>';
+        return;
+      }
+      button.disabled = false;
+      hint.textContent = `Links shown only to ${classNameFor(activeClassId)}. Each feedback form can use a different URL.`;
+      const classLinks = ((teacherData.classManagement || {}).feedbackLinksByClass || {})[activeClassId] || {};
+      CLASS_FEEDBACK_LINK_KEYS.forEach(key => {
+        const item = classLinks[key] || {};
+        const defaults = LINK_DEFAULTS[key];
+        const row = document.createElement('div');
+        row.className = 'list-row';
+        row.dataset.key = key;
+        row.innerHTML = `<div style="display:grid;grid-template-columns:minmax(150px,.8fr) minmax(240px,1.4fr) minmax(200px,1fr);gap:10px;flex:1"><div class="field"><label>Form label</label><input data-field="label" type="text" value="${escapeHtml(item.label||defaults[0])}"></div><div class="field"><label>Class-specific URL</label><input data-field="url" type="url" value="${escapeHtml(item.url||'')}" placeholder="https://…"></div><div class="field"><label>Description</label><input data-field="description" type="text" value="${escapeHtml(item.description||defaults[1])}"></div></div><div><label class="check"><input data-field="published" type="checkbox" ${item.published===true?'checked':''}>Published</label>${item.inherited ? '<div class="muted" style="font-size:11px;margin-top:5px">Currently using the old shared link</div>' : ''}</div>`;
+        host.appendChild(row);
+      });
+    }
+    async function saveClassFeedbackLinks() {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      try {
+        const links = Array.from(document.querySelectorAll('#classFeedbackLinkEditor .list-row')).map(row => ({
+          key:row.dataset.key,
+          label:row.querySelector('[data-field="label"]').value,
+          url:row.querySelector('[data-field="url"]').value,
+          description:row.querySelector('[data-field="description"]').value,
+          published:row.querySelector('[data-field="published"]').checked
+        }));
+        const result = await postAction('save_class_feedback_links',{classId:activeClassId,links});
+        teacherData.classManagement = result.data;
+        renderClassFeedbackLinkEditor();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    function renderClassExamLinkEditor() {
+      const host = document.getElementById('classExamLinkEditor');
+      const hint = document.getElementById('classExamLinkHint');
+      const button = document.getElementById('saveClassExamLinksBtn');
+      host.innerHTML = '';
+      if (activeClassId === 'ALL') {
+        hint.textContent = 'Choose one class from the class filter to manage its PCA and mock-exam links.';
+        button.disabled = true;
+        host.innerHTML = '<p class="empty">Exam links are managed one class at a time.</p>';
+        return;
+      }
+      button.disabled = false;
+      hint.textContent = `Links shown only to ${classNameFor(activeClassId)}. Each test can use a different URL.`;
+      const classLinks = ((teacherData.classManagement || {}).examLinksByClass || {})[activeClassId] || {};
+      CLASS_EXAM_LINK_KEYS.forEach(key => {
+        const item = classLinks[key] || {};
+        const defaults = LINK_DEFAULTS[key];
+        const row = document.createElement('div');
+        row.className = 'list-row';
+        row.dataset.key = key;
+        row.innerHTML = `<div style="display:grid;grid-template-columns:minmax(150px,.8fr) minmax(240px,1.4fr) minmax(200px,1fr);gap:10px;flex:1"><div class="field"><label>Test label</label><input data-field="label" type="text" value="${escapeHtml(item.label||defaults[0])}"></div><div class="field"><label>Class-specific URL</label><input data-field="url" type="url" value="${escapeHtml(item.url||'')}" placeholder="https://…"></div><div class="field"><label>Description</label><input data-field="description" type="text" value="${escapeHtml(item.description||defaults[1])}"></div></div><div><label class="check"><input data-field="published" type="checkbox" ${item.published===true?'checked':''}>Published</label>${item.inherited ? '<div class="muted" style="font-size:11px;margin-top:5px">Currently using the old shared link</div>' : ''}</div>`;
+        host.appendChild(row);
+      });
+    }
+    async function saveClassExamLinks() {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      try {
+        const links = Array.from(document.querySelectorAll('#classExamLinkEditor .list-row')).map(row => ({
+          key:row.dataset.key,
+          label:row.querySelector('[data-field="label"]').value,
+          url:row.querySelector('[data-field="url"]').value,
+          description:row.querySelector('[data-field="description"]').value,
+          published:row.querySelector('[data-field="published"]').checked
+        }));
+        const result = await postAction('save_class_exam_links',{classId:activeClassId,links});
+        teacherData.classManagement = result.data;
+        renderClassExamLinkEditor();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    async function acknowledgeAttendance(email, classId) {
+      const scope = classId && classId !== 'ALL' ? classNameFor(classId) : 'all classes';
+      if (!confirm(`Verify this student's pending attendance for ${scope} today?`)) return;
+      try { const result = await postAction('teacher_acknowledge',{studentEmail:email,classId:classId||'ALL'}); notify(result.message); await loadData(); }
+      catch (error) { notify(error.message); }
+    }
+    async function sendAttendanceEmails() {
+      if (!confirm(`Email the attendance link to ${activeClassId === 'ALL' ? 'all registered students' : classNameFor(activeClassId)}?`)) return;
+      try { const result = await postAction('send_attendance_emails',{studentPageUrl:STUDENT_PAGE_URL,classId:activeClassId}); notify(result.message); }
+      catch (error) { notify(error.message); }
+    }
+    async function syncAllBadges() {
+      if (!confirm('Fetch all saved public Google Skills profiles?')) return;
+      try { const result = await postAction('sync_all_badges'); notify(result.message); await loadData(); }
+      catch (error) { notify(error.message); }
+    }
+  </script>
+  <script type="module" src="teacher-auth.js"></script>
+</body>
+</html>

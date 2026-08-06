@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function approved() {
+      return signedIn() && request.auth.token.email in [
+        'leo@satoo.me', 'leo@street-smart.sg',
+        'mikan23seijin@gmail.com', 'sato87307@gapps.uwcsea.edu.sg',
+        'ponkichi23@outlook.com'
+      ];
+    }
+    function trainer() { return signedIn() && request.auth.token.email == 'leo@street-smart.sg'; }
+
+    match /trainees/{email} {
+      allow read, write: if signedIn() && (request.auth.token.email == email || trainer());
+    }
+    match /settings/{document} {
+      allow read: if approved();
+      allow write: if trainer();
+    }
+    match /program/{document} {
+      allow read: if approved();
+      allow write: if trainer();
+    }
+  }
+}
+

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Student Portal - Mobile</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; overscroll-behavior-y: contain; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .tab-content { display: none; animation: fadeIn .3s ease-in-out; }
+    .tab-content.active { display: block; }
+    .nav-btn { color: #9ca3af; }
+    .nav-btn.active { color: #2563eb; }
+    .nav-btn.active span { font-weight: 600; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideInDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .toast-enter { animation: slideInDown .3s ease-out forwards; }
+  </style>
+</head>
+<body class="flex justify-center items-center min-h-screen sm:p-4">
+  <div id="toast-container" class="fixed top-4 left-0 right-0 z-50 flex flex-col items-center gap-2 pointer-events-none px-4"></div>
+
+  <div class="bg-white w-full h-[100dvh] sm:h-[85vh] sm:max-w-md sm:rounded-[2rem] sm:shadow-2xl flex flex-col relative overflow-hidden border border-gray-100">
+    <div id="loginView" class="flex flex-col h-full items-center justify-center p-6 bg-gradient-to-br from-blue-50 to-white z-20 absolute inset-0">
+      <div class="bg-blue-100 p-4 rounded-full mb-6"><i data-lucide="graduation-cap" class="w-12 h-12 text-blue-600"></i></div>
+      <h2 class="text-2xl font-bold text-gray-800 mb-2">Student Portal</h2>
+      <p class="text-gray-500 text-center mb-8 text-sm">Please verify your registered email address to access your dashboard.</p>
+      <div class="w-full max-w-sm space-y-4">
+        <button id="loginBtn" onclick="loginWithSSO()" class="w-full bg-white text-gray-700 border border-gray-300 font-semibold py-3 rounded-xl hover:bg-gray-50 active:scale-95 transition-all shadow-sm flex items-center justify-center gap-3">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          <span>Sign in with Google</span>
+        </button>
+      </div>
+      <a href="index.html?view=desktop" class="mt-6 text-xs font-medium text-blue-600 hover:underline">Open desktop layout</a>
+    </div>
+
+    <div id="mainAppView" class="hidden flex-col h-full w-full">
+      <header class="bg-white border-b border-gray-100 px-6 py-4 flex justify-between items-center shrink-0 z-10 shadow-sm">
+        <h1 id="headerTitle" class="text-lg font-bold text-gray-800 tracking-tight">Dashboard</h1>
+        <button onclick="logoutSSO()" class="w-8 h-8 rounded-full bg-red-50 hover:bg-red-100 flex items-center justify-center border border-red-200 transition-colors" title="Sign Out"><i data-lucide="log-out" class="w-4 h-4 text-red-600"></i></button>
+      </header>
+
+      <main class="flex-1 overflow-y-auto no-scrollbar bg-gray-50 pb-24 p-5 relative">
+        <section id="tab-dashboard" class="tab-content active space-y-6">
+          <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+            <div class="absolute top-0 right-0 opacity-10 translate-x-4 -translate-y-4"><i data-lucide="fingerprint" class="w-32 h-32"></i></div>
+            <p class="text-blue-100 text-xs font-semibold uppercase tracking-wider mb-1">Verified Student</p>
+            <h2 id="studentNameDisplay" class="text-2xl font-bold mb-1 truncate">Student Name</h2>
+            <p id="studentEmailDisplay" class="text-blue-200 text-sm truncate">email@example.com</p>
+            <div id="studentClassSwitcher" class="hidden mt-4 max-w-xs">
+              <label for="studentClassSelect" class="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-blue-100">Current class</label>
+              <select id="studentClassSelect" onchange="changeStudentClass(this.value)" class="w-full rounded-xl border border-white/20 bg-white/15 px-3 py-2 text-sm font-semibold text-white outline-none backdrop-blur"></select>
+            </div>
+            <div class="mt-4 inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium"><span class="w-2 h-2 rounded-full bg-green-400"></span>Active Session</div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex items-center gap-2 mb-4"><i data-lucide="cloud" class="w-5 h-5 text-blue-500"></i><h3 class="font-semibold text-gray-800">Cloud Skills Boost</h3></div>
+            <p class="text-sm text-gray-500 mb-3">Link your public Google Skills profile to import earned badges automatically.</p>
+            <input type="url" id="skillsUrl" placeholder="https://www.skills.google/public_profiles/..." class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-3 transition">
+            <button id="saveProfileBtn" onclick="submitForm('save_profile')" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-sm"><i data-lucide="save" class="w-4 h-4"></i>Save Profile URL</button>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><p id="badgeProgressLabel" class="text-xs text-gray-500">Badge progress</p><p id="badgeProgress" class="mt-1 text-2xl font-bold text-blue-700">—</p><p id="badgeCount" class="text-xs text-gray-400">Loading…</p></div>
+            <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><p class="text-xs text-gray-500">PCA exam</p><p id="examStatus" class="mt-1 text-lg font-bold text-purple-700">—</p><p id="pcaScore" class="text-xs text-gray-400">Score: —</p></div>
+            <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><p class="text-xs text-gray-500">Mock exam 1</p><p id="mock1Score" class="mt-1 text-2xl font-bold text-slate-800">—</p></div>
+            <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><p class="text-xs text-gray-500">Mock exam 2</p><p id="mock2Score" class="mt-1 text-2xl font-bold text-slate-800">—</p></div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-purple-100">
+            <div class="flex items-center gap-2"><i data-lucide="file-check-2" class="w-5 h-5 text-purple-600"></i><h3 class="font-semibold text-gray-800">Mock Examination Links</h3></div>
+            <div class="mt-4 grid gap-2">
+              <a data-portal-link="pca_sample" class="flex items-center justify-between rounded-xl border border-purple-100 bg-purple-50 p-3"><div><p data-link-label class="text-sm font-semibold text-slate-800">PCA Sample Questions</p><p data-link-description class="mt-0.5 text-xs text-slate-500">Loading link…</p></div><span data-link-state class="text-xs font-semibold text-purple-700">Open</span></a>
+              <a data-portal-link="mock_exam_1" class="flex items-center justify-between rounded-xl border border-purple-100 bg-purple-50 p-3"><div><p data-link-label class="text-sm font-semibold text-slate-800">Mock Exam 1</p><p data-link-description class="mt-0.5 text-xs text-slate-500">Loading link…</p></div><span data-link-state class="text-xs font-semibold text-purple-700">Open</span></a>
+              <a data-portal-link="mock_exam_2" class="flex items-center justify-between rounded-xl border border-purple-100 bg-purple-50 p-3"><div><p data-link-label class="text-sm font-semibold text-slate-800">Mock Exam 2</p><p data-link-description class="mt-0.5 text-xs text-slate-500">Loading link…</p></div><span data-link-state class="text-xs font-semibold text-purple-700">Open</span></a>
+            </div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex items-start justify-between gap-3">
+              <div><div class="flex items-center gap-2"><i data-lucide="calendar-days" class="w-5 h-5 text-amber-600"></i><h3 class="font-semibold text-gray-800">Weekly Badge Requirements</h3></div><p id="badgeRequirementWindow" class="mt-1 text-xs text-gray-500">Loading schedule…</p></div>
+            </div>
+            <p id="badgeRequirementSummary" class="mt-2 text-sm text-slate-500">Checking Badge Tracker due dates…</p>
+            <p id="badgeRequirementsEmpty" class="mt-4 rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">Loading requirements…</p>
+            <div id="badgeRequirementsList" class="mt-4 grid gap-2"></div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex items-start justify-between gap-3">
+              <div><div class="flex items-center gap-2"><i data-lucide="award" class="w-5 h-5 text-blue-600"></i><h3 class="font-semibold text-gray-800">Earned Badges</h3></div><p id="profileBadgeCount" class="mt-1 text-xs text-gray-500">Loading badges…</p></div>
+              <button id="syncBadgesBtn" onclick="syncBadges()" class="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"><i data-lucide="refresh-cw" class="w-4 h-4"></i>Sync</button>
+            </div>
+            <p id="badgeSyncStatus" class="mt-3 text-xs text-slate-500">Checking Google Skills profile…</p>
+            <p id="earnedBadgesEmpty" class="mt-4 rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">No earned badges have been recorded yet.</p>
+            <div id="earnedBadgesList" class="mt-4 grid gap-2"></div>
+          </div>
+        </section>
+
+        <section id="tab-calendar" class="tab-content space-y-5">
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex items-start justify-between gap-3"><div><div class="flex items-center gap-2"><i data-lucide="book-open-text" class="w-5 h-5 text-amber-600"></i><h3 class="font-semibold text-gray-800">This Week’s Lessons</h3></div><p class="mt-1 text-xs text-gray-500">Lesson titles and contents for the current week only.</p></div><span id="calendarWeekLabel" class="shrink-0 rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700">Current week</span></div>
+            <div id="weeklyLessonCalendar" class="mt-4 grid gap-3"></div>
+          </div>
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div><div class="flex items-center gap-2"><i data-lucide="calendar-days" class="w-5 h-5 text-blue-600"></i><h3 class="font-semibold text-gray-800">Monthly Delivery Calendar</h3></div><p id="calendarAttendanceSummary" class="mt-1 text-xs text-gray-500">Loading delivery modes…</p></div>
+            <div class="mt-3 flex gap-2"><span class="rounded-full bg-purple-50 px-2 py-1 text-[10px] font-semibold text-purple-700">Virtual</span><span class="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700">Face to face</span></div>
+            <p id="calendarMonthLabel" class="mt-5 text-center text-sm font-bold text-slate-800">Monthly calendar</p>
+            <div class="mt-4 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-slate-400"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+            <div id="courseCalendarGrid" class="mt-2 grid grid-cols-7 gap-1"></div>
+          </div>
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="flex items-center gap-2"><i data-lucide="library" class="w-5 h-5 text-blue-600"></i><div><h3 class="font-semibold text-gray-800">This Week’s Resources</h3><p class="text-xs text-slate-500">Trainer-published course links.</p></div></div><div id="calendarWeeklyResources" class="mt-4 grid gap-2"></div></div>
+        </section>
+
+        <section id="tab-checkin" class="tab-content space-y-5">
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex items-center gap-2"><i data-lucide="radio" class="w-5 h-5 text-green-600"></i><h3 class="font-semibold text-gray-800">Today’s Attendance Signal</h3></div>
+            <p id="todaySessionSignal" class="mt-2 text-sm font-semibold text-slate-600">Checking today’s calendar…</p>
+            <div id="attendanceCheckpointList" class="mt-4 grid gap-2"></div>
+          </div>
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100">
+              <div class="bg-green-100 p-2 rounded-lg"><i data-lucide="map-pin" class="w-5 h-5 text-green-600"></i></div>
+              <div><h3 class="font-semibold text-gray-800">Daily Attendance</h3><p class="text-xs text-gray-500" id="currentDateDisplay"></p></div>
+            </div>
+            <div class="space-y-4">
+              <div><label for="attendanceSession" class="block text-sm font-medium text-gray-700 mb-1 ml-1">Attendance checkpoint</label><select id="attendanceSession" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 outline-none"><option value="">Loading today’s checkpoints…</option></select></div>
+              <div><label class="block text-sm font-medium text-gray-700 mb-1 ml-1">Comments / Reason</label><textarea id="attendanceComment" rows="3" placeholder="Reason for being late (Required after 9am/1pm) or other comments..." class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 outline-none transition resize-none"></textarea></div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1 ml-1">Medical Certificate (Optional)</label>
+                <div class="relative w-full border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition cursor-pointer" onclick="document.getElementById('mcFile').click()">
+                  <i data-lucide="upload-cloud" class="w-6 h-6 text-gray-400 mx-auto mb-2"></i><span class="text-sm text-gray-500 block" id="fileNameDisplay">Tap to upload MC document</span><input type="file" id="mcFile" class="hidden" onchange="updateFileName(this)">
+                </div>
+              </div>
+              <button id="submitBtn" onclick="submitAttendance()" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl transition shadow-md flex items-center justify-center gap-2 mt-2"><i data-lucide="check-circle" class="w-5 h-5"></i>Submit Attendance</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-projects" class="tab-content space-y-5">
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-blue-100"><div class="flex items-center gap-2"><i data-lucide="users-round" class="w-5 h-5 text-blue-600"></i><div><h3 class="font-semibold text-gray-800">Group Projects</h3><p class="text-xs text-slate-500">Team information, shared submissions and peer evaluation.</p></div></div></div>
+          <div id="projectWorkspace"></div>
+        </section>
+
+        <section id="tab-exams" class="tab-content space-y-5">
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-purple-100"><div class="flex items-center gap-2"><i data-lucide="file-check-2" class="w-5 h-5 text-purple-600"></i><h3 class="font-semibold text-gray-800">PCA and Mock Exams</h3></div><div class="mt-4 grid gap-2"><a data-portal-link="pca_sample" class="flex items-center justify-between rounded-xl border border-purple-100 bg-purple-50 p-3"><div><p data-link-label class="text-sm font-semibold">PCA Sample Questions</p><p data-link-description class="text-xs text-slate-500">Loading link…</p></div><span data-link-state class="text-xs font-semibold text-purple-700">Open</span></a><a data-portal-link="mock_exam_1" class="flex items-center justify-between rounded-xl border border-purple-100 bg-purple-50 p-3"><div><p data-link-label class="text-sm font-semibold">Mock Exam 1</p><p data-link-description class="text-xs text-slate-500">Loading link…</p></div><span data-link-state class="text-xs font-semibold text-purple-700">Open</span></a><a data-portal-link="mock_exam_2" class="flex items-center justify-between rounded-xl border border-purple-100 bg-purple-50 p-3"><div><p data-link-label class="text-sm font-semibold">Mock Exam 2</p><p data-link-description class="text-xs text-slate-500">Loading link…</p></div><span data-link-state class="text-xs font-semibold text-purple-700">Open</span></a></div></div>
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-purple-100"><div class="flex items-center gap-2"><i data-lucide="clipboard-check" class="w-5 h-5 text-purple-600"></i><div><h3 class="font-semibold text-gray-800">Submit Exam Result</h3><p class="text-xs text-slate-500">The latest score updates your Badge Tracker row.</p></div></div><div class="mt-4 space-y-3"><select id="examResultType" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="pca_sample">PCA Sample Questions</option><option value="mock_exam_1">Mock Exam 1</option><option value="mock_exam_2">Mock Exam 2</option></select><input id="examResultScore" type="number" min="0" max="100" step="0.1" placeholder="Score out of 100" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><input id="examResultUrl" type="url" placeholder="Result/evidence link (optional)" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><textarea id="examResultNotes" rows="3" placeholder="Notes (optional)" class="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"></textarea><button id="examResultBtn" onclick="submitExamResult()" class="flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 py-3 font-semibold text-white"><i data-lucide="send" class="w-4 h-4"></i>Submit Result</button></div><h4 class="mt-5 text-sm font-semibold text-slate-700">Recent submissions</h4><div id="examResultHistory" class="mt-3 grid max-h-72 gap-2 overflow-y-auto"></div></div>
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex flex-col items-center justify-center text-center mb-6 pt-2"><div class="bg-purple-100 p-3 rounded-full mb-3"><i data-lucide="award" class="w-8 h-8 text-purple-600"></i></div><h3 class="font-bold text-gray-800 text-lg">PCA Exam Registration</h3><p class="text-sm text-gray-500 mt-1">Register your intent for the upcoming certification exam.</p></div>
+            <div class="space-y-4">
+              <div><label class="block text-sm font-medium text-gray-700 mb-1 ml-1">Exam Date</label><div class="relative"><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i data-lucide="calendar" class="w-4 h-4 text-gray-400"></i></div><input type="date" id="examDate" class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none transition text-gray-700"></div></div>
+              <div><label class="block text-sm font-medium text-gray-700 mb-1 ml-1">Exam Venue</label><div class="relative"><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i data-lucide="building" class="w-4 h-4 text-gray-400"></i></div><input type="text" id="examVenue" placeholder="e.g. Kryterion Testing Center" class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none transition"></div></div>
+              <button id="pcaBtn" onclick="submitForm('register_pca_exam')" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-xl transition shadow-md flex items-center justify-center gap-2 mt-4"><i data-lucide="send" class="w-4 h-4"></i>Register Intent</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-feedback" class="tab-content space-y-5">
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-orange-100"><div class="flex items-center gap-2"><i data-lucide="external-link" class="w-5 h-5 text-orange-600"></i><h3 class="font-semibold text-gray-800">Published Feedback Forms</h3></div><div class="mt-4 grid gap-2"><a data-portal-link="feedback_form_1" class="flex items-center justify-between rounded-xl border border-orange-100 bg-orange-50 p-3"><div><p data-link-label class="text-sm font-semibold">Feedback Form 1</p><p data-link-description class="text-xs text-slate-500">Loading link…</p></div><span data-link-state class="text-xs font-semibold text-orange-700">Open</span></a><a data-portal-link="feedback_form_2" class="flex items-center justify-between rounded-xl border border-orange-100 bg-orange-50 p-3"><div><p data-link-label class="text-sm font-semibold">Feedback Form 2</p><p data-link-description class="text-xs text-slate-500">Loading link…</p></div><span data-link-state class="text-xs font-semibold text-orange-700">Open</span></a></div></div>
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100"><div class="bg-orange-100 p-2 rounded-lg"><i data-lucide="message-square" class="w-5 h-5 text-orange-600"></i></div><div><h3 class="font-semibold text-gray-800">Submit Feedback</h3><p class="text-xs text-gray-500">Your voice matters to us.</p></div></div>
+            <div class="space-y-4">
+              <div><label class="block text-sm font-medium text-gray-700 mb-1 ml-1">Feedback Type</label><div class="relative"><select id="feedbackType" class="w-full pl-3 pr-8 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none transition appearance-none"><option value="Positive">🌟 Kudos / gThanks (Positive)</option><option value="Negative">⚠️ Concern / Issue (Negative)</option><option value="Suggestion">💡 Suggestion / Idea</option></select><div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none"><i data-lucide="chevron-down" class="w-4 h-4 text-gray-500"></i></div></div></div>
+              <div><label class="block text-sm font-medium text-gray-700 mb-1 ml-1">Your Thoughts</label><textarea id="feedbackText" rows="5" placeholder="Share your experience, concerns, or ideas here..." class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none transition resize-none"></textarea></div>
+              <button id="feedbackBtn" onclick="submitForm('submit_feedback')" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition shadow-md flex items-center justify-center gap-2 mt-2"><i data-lucide="heart-handshake" class="w-5 h-5"></i>Submit Feedback</button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <nav class="absolute bottom-0 w-full bg-white border-t border-gray-200 flex justify-around items-end px-2 pb-5 pt-2 z-20 shadow-[0_-5px_15px_-10px_rgba(0,0,0,0.1)]">
+        <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn active flex flex-col items-center p-2 flex-1 min-w-0 transition-colors" aria-current="page"><i data-lucide="layout-dashboard" class="w-6 h-6 mb-1"></i><span class="text-[10px] font-medium">Home</span></button>
+        <button onclick="switchTab('calendar')" id="nav-calendar" class="nav-btn flex flex-col items-center p-2 flex-1 min-w-0 transition-colors" aria-current="false"><i data-lucide="calendar-days" class="w-6 h-6 mb-1"></i><span class="text-[10px] font-medium">Calendar</span></button>
+        <button onclick="switchTab('checkin')" id="nav-checkin" class="nav-btn flex flex-col items-center p-2 flex-1 min-w-0 transition-colors" aria-current="false"><i data-lucide="check-square" class="w-6 h-6 mb-1"></i><span class="text-[10px] font-medium">Attend</span></button>
+        <button onclick="switchTab('projects')" id="nav-projects" class="nav-btn flex flex-col items-center p-2 flex-1 min-w-0 transition-colors" aria-current="false"><i data-lucide="users-round" class="w-6 h-6 mb-1"></i><span class="text-[10px] font-medium">Projects</span></button>
+        <button onclick="switchTab('exams')" id="nav-exams" class="nav-btn flex flex-col items-center p-2 flex-1 min-w-0 transition-colors" aria-current="false"><i data-lucide="graduation-cap" class="w-6 h-6 mb-1"></i><span class="text-[10px] font-medium">Exams</span></button>
+        <button onclick="switchTab('feedback')" id="nav-feedback" class="nav-btn flex flex-col items-center p-2 flex-1 min-w-0 transition-colors" aria-current="false"><i data-lucide="message-circle" class="w-6 h-6 mb-1"></i><span class="text-[10px] font-medium">Feedback</span></button>
+      </nav>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script type="module" src="auth.js"></script>
+</body>
+</html>

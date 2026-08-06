@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SISG Student Portal</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: #f8fafc;
+      color: #0f172a;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+    }
+    .loading-card {
+      width: min(320px, 100%);
+      padding: 28px 24px;
+      border: 1px solid #dbe4f0;
+      border-radius: 22px;
+      background: #fff;
+      box-shadow: 0 20px 50px rgba(15, 23, 42, .13);
+      text-align: center;
+    }
+    .spinner {
+      width: 44px;
+      height: 44px;
+      margin: 0 auto 16px;
+      border: 4px solid #dbeafe;
+      border-top-color: #2563eb;
+      border-radius: 999px;
+      animation: spin .75s linear infinite;
+    }
+    h1 { margin: 0; font-size: 18px; }
+    p { margin: 8px 0 0; color: #64748b; font-size: 13px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.5s; } }
+  </style>
+</head>
+<body>
+  <main class="loading-card" role="status" aria-live="polite">
+    <div class="spinner" aria-hidden="true"></div>
+    <h1>Opening the student portal…</h1>
+    <p>Please wait a moment.</p>
+  </main>
+  <script>
+    const forced = new URLSearchParams(location.search).get('view');
+    const mobileHint = navigator.userAgentData && navigator.userAgentData.mobile;
+    const compactTouch = matchMedia('(max-width: 767px) and (pointer: coarse)').matches;
+    const page = forced === 'desktop' || forced === 'pc' ? 'desktop.html'
+      : forced === 'mobile' ? 'mobile.html'
+      : mobileHint || compactTouch ? 'mobile.html' : 'desktop.html';
+    location.replace(page);
+  </script>
+</body>
+</html>

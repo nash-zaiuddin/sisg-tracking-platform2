@@ -1,0 +1,778 @@
+sem,Qns,Answer,Discussion,Team,Case Study,Trainer's Notes
+https://www.examtopics.com/exams/google/professional-cloud-architect/view/,,,,,Q: 1 - 40,
+Topic 1 Qn 1,1,D,"Keywords: need to keep the old version of the API available and deployable, while allowing new customers and testers to try out the new API. keep the same SSL and DNS records in place to serve both APIs
+D is correct: You are able to preserve your front-end configuration (i.e keep your existing SSL and DNS), and the Load Balancer can route traffic to the old or new backend group
+
+A is incorrect: By configuring a new LB, this would break the requirement to keep the SAME DNS record
+B is incorrect:This violates the requirement to keep the old version of the API while allow new customers to try the new API. Reconfiguring is also an administrative nightmare
+C is incorrect: This option is inefficient. Request had to go through the old API 1st regardless, even the request is for the new API. The new API will process it and send back to user thru the old API",1,,
+Topic 1 Qn 2,2,A,"Company plans to migrate a multi-petabyte data set to the cloud. The data set must be available 24hrs a day. Your business analysts have experience only with using a SQL interface.
+
+Answer is A - BigQuery is a serverless, highly scalable cloud data warehouse designed specifically to store and analyze petabytes of data. Supports SQL to query the data and ensures high availability
+B - Cloud SQL is a relational database service not architected to handle multi-petabyte analytics, and its storage capacity is significantly lower than what a multi-petabyte dataset requires.
+C - While Cloud Storage can easily hold petabytes of flat files cheaply, it does not natively provide a SQL interface
+D - Datastore is a NoSQL document database not for large-scale data warehousing or analytical queries and does not support standard SQL interfaces.",1,,
+Topic 1 Qn 3,3,CDE,"List 3 recommended practices when migrating a J2EE application to the cloud.
+
+Answer is CDE
+C - Having an enterprise-grade monitoring and debugging suite allows the operations team to capture logs, track performance bottlenecks, and debug the application in real-time as it transitions to the cloud.
+D - Automation frameworks ensure that environments are identical, repeatable, and easily destroyed or scaled. 
+E - CI/CD pipeline ensures that any changes to the J2EE application are automatically built, tested, and validated in a staging environment before hitting production
+ 
+A - Directly porting this code to a highly opinionated PaaS like Google App Engine standard/flexible often requires a massive, costly code rewrite. A lift-and-shift to Compute Engine (VMs) or containerizing into Google Kubernetes Engine (GKE) is the preferred initial step.
+B - Cloud Dataflow is a heavy-duty data processing service for batch and streaming data pipelines. Using it just to capture basic application metrics is over-engineering and introduces unnecessary cost and architectural complexity.
+F - Forcing a migration from a relational MySQL database to a NoSQL database like Cloud Bigtable or Datastore would require completely re-architecting the application's data layer.",1,,
+Topic 1 Qn 4,4,A,"A - The session variable is local to just a single instance. 
+When traffic spikes, App Engine routes a user's consecutive requests across different backend instances. If Request 1 hits Instance A, their viewed articles are saved to Instance A's memory. If Request 2 hits Instance B, Instance B's sessions dictionary has no record of that user. It treats them as a brand-new visitor and serves them the exact same news articles they just saw.",1,,
+Topic 1 Qn 5,5,C,"Want a better logging tool to capture errors and help them analyze their historical log data.
+
+C- Help them define their requirements and assess viable logging tools. Rafi say that as cloud architects, we should understand customer requirements first before recommending solutions",1,,
+Topic 1 Qn 6,6,AC,"This question is testing our knowledge on deployment strategies to reduce system-wide failure.
+
+Correct - Option A involves running two identical production environments (green-blue deployment model). This provides a near-instant recovery path, helping to eliminate the ""unplanned"" rollback, making this one of the choices to choose.
+
+Incorrect - Option B involves deploying the change to a small set of users, monitoring it for errors, then gradually increasing the rollout. Should an error occur, only the small set is affected, a rollback can be done without impacting the userbase, make this one of the choices to choose. BUT it should NEVER REPLACE pre-production QA testing. Should do BOTH. Do not eliminate QA
+
+Correct - Option C. Because teams can deploy updates to individual services independently. If an error occurs in the ""billing service,"" only that tiny service needs a rollback; the rest of the web hosting platform stays up and completely unaffected.
+
+Incorrect - Option D & E should not be chosen because changing the database architecture is a foundational infrastructure migration. It does not address the issue of ""errorneuous production deployments"".",1,,
+Topic 1 Qn 7,7,AD,"""A is correct: Keywords: """"require state to persist""""
+--no-auto-delete flag ON ensures that the disk state can survive deletion or restart scenarios
+
+D is correct: Keywords: """"providing cost visibility to the finance department, associate cost to groups""""
+By attaching Labels to resources and using BigQuery billing export, the billing logs can be streamed into BigQuery for subsequent query using SQL
+
+B is incorrect: Setting --auto-delete flag ON will permanently wipe out the attached persistent disks.
+C is incorrect: """"VM CPU utilization"""" is not a valid key-value metadata Label that can be injected into a BigQuery Billing Export
+E is incorrect: Local SSDs cannot survive a VM stop or termination 
+F is incorrrect: Operational nightmare since it involves moving states to Cloud Storage every single time a developer stops a machine multiple times a day""",1,,AD
+Topic 1 Qn 8,8,B,"Keywords: ""reports its status every second, 1000 meeting rooms, sensor ID and several different discrete items of information""
+B is correct: NoSQL databases handle massive horizontal scaling and sub-millisecond write latencies exceptionally well
+
+A is incorrect: Flat file cannot gracefully handle 1,000 concurrent, millisecond-level streaming writes. It also lacks concurrency control, indexing, and is highly inefficient for analysts who need to run immediate queries
+C is incorrect: Relational system is not optimized for high-throughput, constant time-series writes. Performance degradation, very expensive to scale horizontal
+D is incorrect: Blobstore is designed for unstructured, large binary objects (images, videos, backups). Saving a tiny single-second sensor payload as an individual blob object would result in massive storage overhead. ",1,,
+Topic 1 Qn 9,9,C,"VM instances are being terminated and re-launched every minute. The instances do not have a public IP address and the appropriate web response is coming from each instance using the curl command.
+The managed instance group is not able to reach the instances as they do not have a public ip and assumes the VM is broken. This causes the instances to continuously terminate and recreate.
+Answer is C as it allows the health checks to reach the instances",1,,
+Topic 1 Qn 10,10,C,Use service account to allow the VM to connect to BigQuery,1,,
+Topic 1 Qn 11,11,B,"Options A & D are a security risks
+Option C users still need to set up password, causing slight disruptions.",2,,
+Topic 1 Qn 12,12,B,"Key words: 
+- analyse data stream
+- no existing code
+- mix of batch and stream processing
+
+Option A is viable but serves more as a lift and shift. Since the company has no exisiting code, dataflow is more optimal.
+Option C is not a processing framework.
+Option D requires a complex self-managed pipeline.",2,,
+Topic 1 Qn 13,13,C,it is option c since app engine allows users to easily route back to a previous healthy version. a is wrong as the questions states that the issue occurred after the update. b is wrong as the approach to this latency issue should be application level tracing. d is wrong because redeploying known broken code is a major operational anti-pattern ,2,,
+Topic 1 Qn 14,14,A,"A > Least Amount of Downtime: Google Cloud persistent disks allow you to resize them while the virtual machine is running. There is no need to shut down the VM, take snapshots, or move data to new disks
+Not C: fdisk used for partitioning not resizing",2,,
+Topic 1 Qn 15,15,A,"PCI compliance is encrypted payment data, PII, without compromising analysis
+B,C isolate resources, does not manage data
+D only identifies the respective machines data is still untouched
+E creates restricted views but underneath the data is still stored unencrypted
+A hashes are the only way that sensitive data can be retained with anonymity",2,,
+Topic 1 Qn 16,16,B,6000 - 8500 clicks per second -> Low latency = Bigtable,2,,
+Topic 1 Qn 17,17,B,b is correct because it is the native fully managed feature specifically designed for this scenario. a is incorrect as gsutil requires the config file to be in json not xml. c&d are wrong because it is highly inefficient to run the cron job when there is a native function.,2,,
+Topic 1 Qn 18,18,B,Dataproc is a fully managed service for running Apache Spark and Apache Hadoop clusters,2,,
+Topic 1 Qn 19,19,C,"A is incorrect as it does not resolve input/output bottleneck
+B, D and E are incorrect as they involve massive migration and changing entire strategy, at the same time they do not fix the current physical infrastructure bottle neck
+C is correct as it significantly increase the input/ouput operations and throughput limits",2,,
+Topic 1 Qn 20,20,C,"C is correct- provides low latency performance and can handle 500k writes per second.
+
+A - bigquery used for analysing datasets, datawarehouse not database. 
+B - relation database and unsuited for 500k writes per second
+D - object storage service for unstrucuted data, not a database that can provide low latency querying",2,,
+Topic 1 Qn 21,21,,WHERE IS THIS,3,,
+Topic 1 Qn 22,22,,,3,,
+Topic 1 Qn 23,23,D,"D tests for canary deployment strategy. 
+A and B does not help as it is too vague and does not validate performance. 
+C is wrong as it is difficult to replicate the test via increasing the load",3,,
+Topic 1 Qn 24,24,D,"Trace is used to find the services that are taking the longest amount of time 
+A is wrong as it is a mitigation strategy
+B and C  is wrong as it is for monitoring",3,,
+Topic 1 Qn 25,25,D,"Option A, B doesn’t help to fix the main issue. Which is to promote to a master.
+Option C is for Disaster recovery not High Availablity
+",3,,
+Topic 1 Qn 26,26,D,"Option A doesn’t help with storing logs
+Option B BigQuery is too expensive
+Option C only retain data for 6 weeks. Which doesn’t fulfil the requirements of 5 years.
+",3,,
+Topic 1 Qn 27,27,A,"B is out because cloud VPN doesnt satisfy the bandwidth and performance requirements plus it routes the traffic through the public internet
+C -  doesnt solve the networking problem + doesnt provide dedicated connectivity 
+D - Google prefers managed service over building it yourself + operational burden
+",3,,
+Topic 1 Qn 28,28,B,"A- Cloud monitoring alerts are real-time detection & notifications - dont help auditor perform historical analysis
+C- Unnecessary complexity 
+D - GCS good for long term compliance storage but stores logs as raw unstructured JSON files + does not support SQL queries
+",3,,
+Topic 1 Qn 29,29,C,"Best practise is to use secret management 
+A,  B and D are bad practice, should not be saved in the source code and also should not be a file easily accessible in the repo. 
+",3,,
+Topic 1 Qn 30,30,C & F,"Cloud Deployment Manager might be unfamiliar to the engineers.A is not the answer as it is not an issue, but a feature of Cloud Deployment Manager.",3,,
+Topic 1 Qn 31,31,A,"Google Kubernetes Engine handles the portable auto-scaling and URL routing, Jenkins automates continuous software delivery, and Helm uses dynamic templates to easily deploy separate copies of the application stack.",4,,
+Topic 1 Qn 32,32,C,gce is engineered to look for the shutdown-script metadata key during a preemption event.,4,,
+Topic 1 Qn 33,33,D,"firewall rules will enforce the traffic flow requirements and restrict the API from talking directly to the Database. The reason why A is wrong is because moving the different tiers to different VPC will not restrict them from talking to each other, you will still need to write firewall rules. For B, although you can do this, it is wrong because the tiers scale independently, this means that you would need to dynamically update the OS firewall rule on every single machine every time a new IP address is added or removed, so this is not practical. And the reason why it is not C, is because you cannot use route to implement a security boundary, so you wont be able to restrict traffic flow between the web and database tier.",4,,
+Topic 1 Qn 34,34,ACE,"A - check logs, C - check logs relevant to the new kernel module, E - zoom into time window of the incident. Option B wrong: activity logs track GCP-level events, such as instance creation, metadata changes, API calls. they do not contain OS-level debugging info or kernel/module failure data. Option D wrong: live migration events are infrequent and unlikely to cause a 50% failure rate across multiple servers simlutaneously following a specific kernel module installation. Option F wrong: impractical, time-consuming, requires moving data out of production environment, and does not guarantee the issue (which appears 50% of the time) would be reproducible on local environment. ",4,,
+Topic 1 Qn 35,35,AE,cost-effective long-term backup and powerful data analytics.,4,,
+Topic 1 Qn 36,36,B,Utilise the deployment pipeline to revert code changes back to a stable version,4,,
+Topic 1 Qn 37,37,C,"Using a single Organization maintains top-down central control, while Folders let you group resources by department so each team can manage its own permissions independently.",4,,
+Topic 1 Qn 38,38,B,redeploy on app engine,4,,
+Topic 1 Qn 39,39,C,"because it encrypts the message using the originating user's private key so this proves that the message was sent by the original user. The reason why its not A, is because there is no cryptographic proof, this means that anyone can tag the message as the original sender. And the reason why it is not B is because it states that it is a shared key, so you wont be able to differentiate the sender and the receiver. Then the reason why it is not D is because SSL is for securing data in transit, so it secures the connection but not the message, you wont be able to prove who sent the message.",4,,
+Topic 1 Qn 40,40,B, Latency problem,4,,
+https://www.examtopics.com/exams/google/professional-cloud-architect/view/1/,,,,,Q: 41 - 116,
+Topic 1 Qn 41,41,C,"A is incorrect: Hashing - 1 way non-reversible ouput
+B is incorrect: Need to manage the encryption keys. Add overheads. Authorized users can still decrpyt and see the PII fields
+D is incorrect: Error-prone and Difficult to maintain",1,,
+Topic 1 Qn 42,42,A,"Option B is wrong because it keeps the file in external object storage, which is not what the question is asking 
+Option C and D are wrong because it stores the data temporatrily , so it does not persist across sessions
+Option A is right because the data will live inside the persistent home directory",1,,
+Topic 1 Qn 43,43,A,"A - Dedicated Interconnect provides physical, direct connections to Google's network in capacities of 10 Gbps or 100 Gbps per link
+B  (Cloud VPN) - A single Cloud VPN tunnel has a maximum throughput limit (typically 1.5 Gbps to 3 Gbps depending on whether you use Classic or HA VPN). Furthermore, VPN traffic routes over the public internet.
+C & D (Cloud CDN): Cloud Content Delivery Network (CDN) is used for caching and delivering web content closer to users globally.",1, ,
+Topic 1 Qn 44,44,B,"Commited use is for a period of 1-3years, training the whole team is better than 1 person.",1,,
+Topic 1 Qn 45,45,D,"D - establishes a clear, gate-kept pipeline using Git tags. Changes are isolated and rigorously tested in a dedicated staging environment first. Only after they are fully verified do they receive a production tag to trigger the final deployment.
+A & B - Both of these options deploy builds directly to production, exposing unverified code changes to your production infrastructure before validating them in a safe, isolated staging environment.
+C - Deploy changes to production for 10% of users does not satisfy the requirement of verifying code changes safely before production deployment.",1,,
+Topic 1 Qn 46,46,C,"Option A is wrong being a project viewer grants read-only access to GCP resources but it doesn't automatically grant SSH access to linux instances, an SSH key must still be provided to get SSH access to the linux instances.
+Option B is wrong because it will only restart the instances, doing nothing to solve the health check failure
+Option D is wrong because of ""autoscaling is disabled"", a useless step that wastes time.
+
+Therefore it's option C.",1,,
+Topic 1 Qn 47,47,C,"Option A is wrong because there are other platforms that are certified.
+Option B is wrong because GKE can be used.
+Option D is wrong because not all services are compliant.",2,,
+Topic 1 Qn 48,48,B,the datalab options are wrong since datalab is used for machine learning also it is deprecated and replaced with gemini enterprise agent platform and does not have the anomaly detection that the company requires. b is correct since dataprep requires the data to be in a supported google cloud storage service,2,,
+Topic 1 Qn 49,49,C,Top down for policies,2,,
+Topic 1 Qn 50,50,C,"C because all others do not provide unique, non-overlapping IP range for your VPC",2,,
+Topic 1 Qn 51,51,A,"B is incorrect as App Engine does not automatically detect new files
+C is incorrect as you cannot directly upload yaml file through Datastore Admin
+D is incorrect as there is no built-in python module to accept index configuration file
+A is correct as to manually upload yaml file you have to use CLI(gcloud)",2,,
+Topic 1 Qn 52,52,C,"C - MIG provides regional redundancy.
+HTTP load balancing - Global load balancing
+keeping both instance groups in the same project simplifies management
+
+A & B - compute engine instance, not as reliable or scalable as instance groups
+D - multi project setups add overhead with no advantages",2,,
+Topic 1 Qn 53,53,D,"Flexible environment is basically a Standard Compute Engine VM. Which gives us more flexibility in configuring the Cloud VPN. + natively run inside VPC
+A & C is out. App Engine firewall rules are designed for frontend facing.
+Not B because App Engine standard doesn’t  support networking flexibility needed for connecting cloud VPN to a private on-prem",3,,
+Topic 1 Qn 54,54,A," Best way to install third party services is to use cloud storage for storing and PGA as it does not require external IP 
+C and D is incorrect as it is used to host repositories. B is wrong as it uses firewalls requires a lot of effort.",3,,
+Topic 1 Qn 55,55,A,"Rehydrator is the right tool to decrypt and decompress data for upload into GCP
+Not B because A. For B dataprep is a visual data cleaning & prep tool
+Not C, D as 75TB too large, so cannot use gsutil
+ ",3,,
+Topic 1 Qn 56,56,A,"Kubectl command Rolling update allows it to be updated in batches. Hence, ensuring there is zero downtime.
+Not B, because Instance Group will be updating the Compute Engine VM OS or machine type instead of the container image of the application deployment.
+Not C, D because manual deleting and creating will cause a lapse and cause downtime",3,,
+Topic 1 Qn 57,57,C,"allowing dataviewer on the projects with data prevents them from running queries which incur cost
+Not B and D as it reverses the permissions, BigQuery user and BigQuery jobUser is granted on the projects that contain the data
+Not A as BigQuery User role allows users to create datasets inside the project. While BigQuery job User doesn’t allow that
+",3,,
+Topic 1 Qn 58,58,B,"Not A, Cloud Storage does not traditionally support password protection mechanisms for uploads..
+Not C & D, as Cloud Identity requires users to have managed identities within the organization directory.",3,,
+Topic 1 Qn 59,59,D,"Under the cloud's shared responsibility model, Google secures the underlying infrastructure, but you are entirely responsible for designing your application to protect user data and meet GDPR rules.",4,,
+Topic 1 Qn 60,60,A,favors fully managed services (PaaS) over self-managed infrastructure (IaaS). CloudSQL is enough for one region,4,,
+Topic 1 Qn 61,61,B,This is standard practice,4,,
+Topic 1 Qn 62,62,B,"the team members already have project experience, upskilling them with a specific role would be best in the long-term",4,,
+Topic 1 Qn 63,63,A,cloud function is severless and if there is no activities it will scale down to zero,4,,
+Topic 1 Qn 64,64,A,lookup by key is always fastest method in datastore. Querying is less efficient,4,,
+Topic 1 Qn 65,65,A,"A is correct: Most secure method. Allows you to automate batch uploads securely from your on-premises servers without leaking the sensitive encryption keys into system logs
+
+B is incorrect: Irrelevant. gcloud config only manages settings for core GCP SDK configurations, not encryption key
+C & D are incorrect: gsutil cp command does not natively support an inline --encryption-key flag",1,,
+Topic 1 Qn 66,66,B,"A and D is highly manual and roundabout way, C is not low latency. B is the purpose built product for the problem",1,,
+Topic 1 Qn 67,67,C,B and D is overkill since we need very little cpu and mem. A is unreliable as it depends on external resources when using startup scripts,1,,
+Topic 1 Qn 68,68,B,"GCDS is exactly what they described, perform a sync to provision cloud identities.",1,,
+Topic 1 Qn 69,69,B,A and D is out as its CE nothing to do with GKE from the questions and C is a highly manual way to go about the problem.,1,,
+Topic 1 Qn 70,70,D,"Read replicas by itself is incomplete so A and C is out, B is also not relevant as they want it for a SPECIFIC zone ",1,,
+Topic 1 Qn 71,71,C,"Options A and B are wrong because creating snapshots are more for backups / disaster recovery.
+Option D the order is wrong, should be custom image --> template",2,,
+Topic 1 Qn 72,72,B,b is correct as network tags helps to apply firewall rules to instances regardless of their ip address which means that any instances spun up by the autoscaler will inherit the correct network access policies. a can work but it is way more complex so very inefficient. c is wrong because dns is not a network security enforcement tool. d does not answer the question as it says to configure the web application to authorise them.,2,,
+Topic 1 Qn 73,73,A,"Keyword: scale to not run out of storage, maintain 75% CPU usage, replica lag below 60 secs
+C,D do not have automatic storage increase
+B has a fixed CPU size of 32 cores which is not cost optimized",2,,
+Topic 1 Qn 74,74,D,"keyword: OLAP, terabytes, relational database (Answer D)
+C is NoSQL, A and B is for OLTP",2,,
+Topic 1 Qn 75,75,C,"A and D are incorrect as it deletes data and proper post-mortem cannot be conducted
+B is incorrect as Editor role is not needed here
+C is correct as consulting logs will provide the necessary evidence and data",2,,
+Topic 1 Qn 76,76,A,"A - authenticate using service accounts attached to a VM with the least privileged roles is the best practice.
+
+B - do not grant IAM roles. Authorised token to hit API end points but do not grant IAM roles.
+
+C - manually handling keys introduces security risks.
+
+D - does not solve the problem of authenticating the authorizing the VM to trigger the cloud function.",2,,
+Topic 1 Qn 77,77,D,"Not C, no offer of a Global Cloud VPN Gateway. VPN endpoints route traffic down to their localized physical data centers.
+Not B, IAM is for share a single network across different Google Cloud projects.
+Not A, VPC Network Peering is used to connect two VPC Google. Plus it’s not a VPN lol",3,,
+Topic 1 Qn 78,78,B,"A will delete the table after 45 days. C is wrong as BigQuery will not prune, so it will leave the data indefinitely. D is wrong as it requires creating a script, and is not google recommended practice for it, untraceable",3,,
+Topic 1 Qn 79,79,A,"Reason: HPA is used to monitor the CPU usage of pods. C and D are wrong as maxSurge and maxUnavailable are used for rolling updates and have nothing to do with autoscaling the clusters.  
+Not B - Although GKE nodes run inside Compute Engine Managed Instance Group, googles best practice is to use cluster autoscaler NOT directly autoscaling the underlying MIG
+",3,,
+Topic 1 Qn 80,80,B,"Not A, as direct peering doesn’t have SLA and is not a backup for interconnect
+Not C or D, even though Transfer Appliance is related to  bulk data transfer for on-premise to GCP, Transfer appliance will take a longer time for disaster recovery
+Transfer Appliance is Not recommended for disaster recovery",3,,
+Topic 1 Qn 81,81,B,"Reason: not C and D as it uses standard VMS = no cost effective
+If we’re gonna disable then discontinue we can just discontinue it instead
+Not A as we still have to disable the API to prevent someone from accidentally provisioning it despite being discontinued",3,,
+Topic 1 Qn 82,82,C,"shutting down all VMs simulate a zonal outage, which tests if the failover is working correctly
+A and B are security related, not resilience testing
+D is wrong because it focuses on Cloud SQL only but ignores Rest API & compute layer behavior",3,,
+Topic 1 Qn 83,83,D,"Not A as extra effort is needed when Cloud Audit Logging is already there. Will have to connect the data source , A is a reporting tool not auditing tool.
+Not B as it is not best practices. Not C as cli commands are not use for auditing but simply troubleshooting tools
+
+",3,,
+Topic 1 Qn 84,84,B,,4,,
+Topic 1 Qn 85,85,A,"To run any query, load job, or export job in BigQuery, a user must have the roles/bigquery.jobUser role at the project level.  Granting the country-specific analyst groups access at the dataset layer ensures they can query all current and future tables for their country automatically.",4,,
+Topic 1 Qn 86,86,B,"because for customer session state we need to handle fast reading and writing of unstructured data, and it must survive for several days even if the user is offline. So we need persistent storage, and memcache provides high-speed in-memory caching while backing it up to Cloud Datastore (which is now known as Firestore). Then we use Lifecycle-managed Cloud Storage to automatically transition the logs to the archive storage class. Why its not A, C and D, is because local SSDs are physically attached to the server hosting the VM and are ephemeral, meaning that if the VM suddenly stop or crash, all the data on the local SSD will be permanently lost. ",4,,
+Topic 1 Qn 87,87,A,"stateful allows the hsotnames to remain consistent. Option B wrong: controlling access, nothing to do with pod naming or networking. Option C wrong: does not survive pod recreation. Option D wrong: persistent volumes are needed for stateful but it does manage the hostnames. ",4,,
+Topic 1 Qn 88,88,A,"you want more user requests to point to the exact same cache key, removing the protocol https and http is regarded as 2 objects ",4,,8
+Topic 1 Qn 89,89,B,Now called Cloud Monitoring and Cloud Logging,4,,
+Topic 1 Qn 90,90,B,App Engine has this feature built in. The other options are overly complex or irrelevant.,4,,
+Topic 1 Qn 91,91,A,"FW rules with lower priority no will be evaluated 1st.
+A is correct: Priority 100 rule to allow AD traffic will be evaluated 1st followed by priority 1000 deny all rule 
+
+B is incorrect: Priority 100 will be evaluated 1st denying all traffic for all instances, taking predence over the priority 1000 allow rule for AD
+C & D are incorrect: 
+-GCP does not have ""implied deny egress rule"" The default implied egress rule is ALLOW ALL (lowest priority 65535).  
+-You can still explicitly set the deny egress rule to deny all instead of relying on implied rules",1,,
+Topic 1 Qn 92,92,D,"ABC about performance, does not improve the results",1,,
+Topic 1 Qn 93,93,A,"Need to deploy the application on GKE, hence C and D are out as they use Compute Engine. Answer is A as Ingress resource is on layer 7 application layer while Service resource of type LoadBalancer is on layer 4",1,,
+Topic 1 Qn 94,94,B,"HTTPS = Application Load balancer with allows for creation of URL map via forwarding, C and D is proxy LB",1,,
+Topic 1 Qn 95,95,B,"It is the only error handling approach out of the four. A and C is more on performance whilst D is unreliable, too slow and incomplete",1,,
+Topic 1 Qn 96,96,B,Deployment Manager is GCP's managed approach as compared to gcloud scripts while Stackdriver/Monitoring is the tool for monitoring. Activity logs is for logging.,1,,
+Topic 1 Qn 97,97,D,"Options B and C are wrong because it is still only regional.
+Option A is possible also.",2,,
+Topic 1 Qn 98,98,C,option is c as it is the most efficient. a & d are very inefficient while b stores the data indefinitely when it needs to be deleted as soon as regulations allow,2,,
+Topic 1 Qn 99,99,A,"Keyword: Minimize number of queries to database
+Shared memcache is similar to spot vms in the fact that your cached results may be evicted 
+Dedicated ensures that does not happen and will more consistently protect the db
+Cache is not populated from cron tasks ",2,,
+Topic 1 Qn 100,100,B,"B creates a resilient distributed task execution pipeline with no single points of failure.
+Not A and C - don't publish messages ""directly"" to your worker virtual machines in case they crash.
+Not D as cronjob for GKE is meant for workloads within the cluster boundary. should use cloud scheduler.",2,,
+Topic 1 Qn 101,101,B,"A is incorrect as gsutil -m does not circumvent physical bandwith limits
+C and D is incorrect as using public internet limits bandwith to 100MB
+B is correct as Dedicated Interconnect or Direct Peering connection provide high-bandwith connections",2,,
+Topic 1 Qn 102,102,B,"cloud pub/sub alone guarantees at least once delivery, meaning it might sometimes deliver duplicate messages. 
+cloud dataflow (stream processor) is needed to provide exactly once processing semantics. 
+stack driver - monitoring, logging and diagnostics and not data processing. 
+Cloud SQL - database service and not stream processor.",2,,
+Topic 1 Qn 103,103,C,"To perform lift n shift, we have to assess our resources, then plan and migrate using runbook.
+Not A: migrating individually might break some dependencies
+Not B: very manual and inefficient
+Not D: we shouldn’t use 3rd party tools
+",3,,
+Topic 1 Qn 104,104,D,"Reason: use unmanaged instance groups since they want full control and no horizontal scaling. Network load balancer since TCP
+Not A and B:  are managed instance groups, which uses autohealing which sems like horizontal scaling
+Not C: HTTP load balancer is not recommended since traffic is via TCP",3,,
+Topic 1 Qn 105,105,D,"Minimise Latency, High throughput, Internal IP communication
+A and C are wrong as cloud VPN uses public internet, latency is unreliable. 
+B is wrong as it is used to exchange traffic at edge network, not high throughput
+",3,,
+Topic 1 Qn 106,106,A,"A Cloud Run can split traffic between different revisions and is designed for it. 
+Reason: 
+B is wrong as it creates unnecessary complexity and overhead
+C is wrong as even though its meant for CICD, its not effective and quite fragile 
+D is wrong as traffic director is a service mesh for cross traffic management. (an overkill)",3,,
+Topic 1 Qn 107,107,A,"Not B, as there are already in-built alerting policies. Hence, no need to install alerting software.
+Not C, D adding extra complexity too troublesome",3,,
+Topic 1 Qn 108,108,C,"Not A - Sharding divides a large dataset into smaller chunks and spreads them across multiple servers so it enables horizontal scaling - so its related to performance tool not a back up tool
+Not B - Read replicas are used to handle read-query traffic + asynchronous so can lose recent transaction
+Not E - semi synchronous replication is used for high availability and not for minimizing data loss ",3,,
+Topic 1 Qn 109,109,A,"B does not delete the data. C does not delete the data. D is hashing the unique identifier, not deleting the data.",3,,
+Topic 1 Qn 110,110,A,"Google App Engine is a Platform-as-a-Service (PaaS). It completely hides the underlying infrastructure, offering the lowest operational overhead of all the options.",4,,
+Topic 1 Qn 111,111,B,scale to zero during after office hours,4,,
+Topic 1 Qn 112,112,C,"because this approach is Google cloud's standard approach for migrating live databases with minimal downtime. The reason why it is not A, is because it says that it modify the source code of the application to write both queries to both databases, and the question wants minimal modification so this is wrong. And the reason why it is not B, is because there will be data loss when you stop the application (mysqldump is taken while on-prem app is running and accepting user traffic). And the reason why its not D is because this is a lift-and-shift offline migration, which will result in downtime, and the question states that they want minimal downtime, so this is wrong.",4,,
+Topic 1 Qn 113,113,D,"Enforce/Restrict across entire org = Organization Policy Constraints. Option A & B are about network design, not enforcement. Option C NAT is a networking tool and does not enforce restriction. ",4,,
+Topic 1 Qn 114,114,B,there is no log info therefore you need to enable firewall rules logging. The rest will not log your firewall log,4,,
+Topic 1 Qn 115,115,A,Calls for service perimeter which means using VPC Service Controls,4,,
+Topic 1 Qn 116,116,D,"Opportunistic leaves current running instances untouched, Proactive actively replaces current instances",4,,
+https://www.examtopics.com/exams/google/professional-cloud-architect/view/1/,,,,,Q: 117 - 191,
+Topic 1 Qn 117,117,B,"B is correct:
+""As quickly as possible"" 
+Instance Template paired with a Regional Persistent Disk - seconds to recover
+""With the latest application data""
+Regional PDs perform synchronous replication across two zones.
+""In another zone""
+data is already physically present in the secondary zone, you simply tell Compute Engine to launch the new instance in that backup zone and mount the replicated disk.
+A is incorrect: This option will fail during a zonal outrage becos it states you should restore the disk in the ""same zone.""
+C is incorrect: Using a snapshot schedule means your data is only as good as the last snapshot taken. If your snapshot runs at midnight and the outage happens at 2:00 PM, you lose 14 hours of data. Also restoring a disk from a snapshot is significantly slower.
+D is incorrect: It it suggests spinning up the application in ""another region."" Regional Persistent Disks only replicate across two zones within the SAME REGION.",1,,
+Topic 1 Qn 118,118,B,"DEBATE TIME, most people in examtopics think its A, we chose B because of the NAT layer",1,,
+Topic 1 Qn 119,119,B,"Communtiy is torn between A or B, but we chose B",1,,
+Topic 1 Qn 120,120,B,"C and D is wrong because peering is non-transitive. A is wrong because it is incomplete as router only handles routing with BGP, still need the connection first",1,,
+Topic 1 Qn 121,121,B,B is the most streamlined way to update your instance,1,,
+Topic 1 Qn 122,122,A,"B & D involve creating new things, which is not what minimal disruption wants C has a third party solution, so it's left with A",1,,
+Topic 1 Qn 123,123,C,"Question states that read and write to the same POSIX filesystem is a requirement.
+Options A, B & D do not support POSIX.",2,,
+Topic 1 Qn 124,124,A,answer is a. asm is specifically designed to manage and monitor microservice architectures which includes latency traffic and errors. b & c are wrong because acm is used to enforce policies and security rules and does not provide real time monitoring services. d is highly disruptive as its istio has already been configured in the asm and would likely break the environment,2,,
+Topic 1 Qn 125,125,A,"A - Keyword: No deletion or overwriting for 5 years
+B,D still allows the service account to delete or overwrite the file with the given role
+C secures the data's confidentiality but not its immutability
+A is the only one that manages the retention period and prevents modification",2,,
+Topic 1 Qn 126,126,C,"C - automated build and test pipeline that prevents configuration bypasses
+Not A and B - Relying on developers to execute manual commands 
+Not D  - vulnerability scanning is for security ",2,,
+Topic 1 Qn 127,127,D,"A is incorrect as bottleneck stated as CPU not memory
+B and C are incorrect as restarting will cause more dropped request and will just be hit by same heavy load again after restart
+D is correct as it addresses the bottleneck immediately. Increasing maximum = distribute load ",2,,
+Topic 1 Qn 128,128,B,"cloud run - scales down to zero and automatically handles traffic spikes 
+Compute engine auto scaling - not practical as you need to leave 1 or more instances running to handle load balancer, health checks etc 
+500k requests per second hence, cloud bigtable as it is a noSQL wide column database that handles lots of read/writes per second 
+big query is designed for analytical queries not real time lookups.",2,,
+Topic 1 Qn 129,129,A,"A. 
+Deployment - allows users to define state eg specific number of replicas (pods). if a pod fails, the deployment automatically replaces it.
+
+Pod is incorrect as it does not have built in scaling or self healing capabilties
+
+Service - creates internal IP and internal DNS name for deployment. If underlying pods are scaled up and down, the DNS name remains constant = microservices can communicate with each other
+
+ingress is wrong - ingress is designed to route external HTTP traffic from outside cluster to internal services. Question states that microservices should remain internal to cluster.",3,,
+Topic 1 Qn 130,130,C,"Reason: it allows the networking team to manage all network resources as the host vpc, while allowing the dev team to manage their own compute resources independently
+A and D is wrong as cloud VPN would need to manage two network environments, making it more complicated + networking team does not have  centralised control 
+B is wrong as putting everything in a single project file would not hide the sensitive data + networking team can potentially access compute environment + no security boundaries",3,,
+Topic 1 Qn 131,131,D,storing static data is always using cloud storage bucket,3,,
+Topic 1 Qn 132,132,C,"pub/sub ensures real-time delivery, and cloud function is used for the event driven use-case",3,,
+Topic 1 Qn 133,133,C,No public IP or VPN is required + IAM-controlled access (least privilege),3,,
+Topic 1 Qn 134,134,,"This is a hierarchical system. Roles given the Organization will be given to the children. Have to remove organization role, since it will override any other policies/permissions in the folder level
+",3,,
+Topic 1 Qn 135,135,B,"Istio is used for internal security, distributed metrics, traffic mirroring or fault injection btw microservices inside a cluster",4,,
+Topic 1 Qn 136,136,A,no operation overhead,4,,
+Topic 1 Qn 137,137,C,"development best practice, allows users' existing applications to remain stable, and migrate to the new API version when they are ready. Option A wrong: distribution list or relying on emails can be missed, professional APIs must manage transition through code and architecture, not just communication. Option B wrong: documentation is a great practice, but it does not prevent users' application from breaking (i.e. it informs, but does not provide technical mechanism to keep their existing application working). Option D wrong: adding 'deprecated' is non-standard, most api clients expect version numbering for consistency and predictability.",4,,
+Topic 1 Qn 138,138,C,,4,,
+Topic 1 Qn 139,139,A,allows you to simulate thousands of concurrent users hammering your GKE application.,4,,
+Topic 1 Qn 140,140,D,"When dealing with message queues, don't scale based on CPU. Scale application based on the size of the message backlog.",4,,
+Topic 1 Qn 141,141,C,"A is incorrect: timestamps are not completely unique. Multiple commits can happen within the same minute.
+B is incorrect: Manual and error-prone due to Human process.
+D is incorrect: Using the :latest tag is one of the most dangerous container deployment anti-patterns. The :latest tag is overwritten every single time a new build runs. If you have 5 instances running :latest, you have absolutely no way of knowing which code variant is actually active inside each container.",1,,
+Topic 1 Qn 142,142,B,Minimize operational overhead so A and C is out. Standard for its scale to zero and no need for flex since Go is supported,1,,
+Topic 1 Qn 143,143,D,Raw data needs to be untouched before any processing and cloud storage bucket fits the bill,1,,
+Topic 1 Qn 144,144,B,"Different departments, different folders",1,,
+Topic 1 Qn 145,145,C,"We've only ever worked with binary authorization, lol A is an attack surface, B and D is highly manual ",1,,
+Topic 1 Qn 146,146,B,"I see TB, I see transfer appliance, I click",1,,"Use transfer appliance if more then 1 TB of data, less then 1 TB use gcloud storage
+
+
+https://docs.cloud.google.com/storage-transfer/docs/transfer-options "
+Topic 1 Qn 147,147,C,"Key words: Max performance, Min downtime and data loss
+Option A has a potential to lose an hour worth of data.
+Option B, gcs-fuse has high latency.
+Option D only has local SSD, in the event of zone failure all data is lost.",2,,
+Topic 1 Qn 148,148,D,d is the only option that satisfies both the requirement that generates the key outside of google cloud and that the sensitive data remains encrypted while in the data warehouse. a & b are wrong as the new key is being generated inside of google cloud by using cloud key management service. c is wrong because it is decrypting the data before storing it which makes importing an external key redundant.,2,,
+Topic 1 Qn 149,149,B,"A would require the manual encryption of the data after creating the key. C also manually encrypts the data, and the key is not managed.
+D creates the encryption key to then be used as a csek for the bucket, but the key must still be secured, rotated and generated manually.
+B encrypts all data in the bucket automatically and the key is securely managed by google",2,,
+Topic 1 Qn 150,150,A,"A > use private cluster to assign private IP.  Cloud NAT Gateway for outbound traffic to internet third party services. 
+Not B and C as PGA is for connecting to Google’s native services. 
+Not D as setting up custom proxy instance would require a public IP address,",2,,
+Topic 1 Qn 151,151,D,"A and B are incorrect as Private Google Access does not facilitate outbound routing from an App Engine app to an internal network.
+C is incorrect as it is not the mechanism used to connect App Engine Standard to your own VPC.
+D is correct as serverless VPC access creates a connector that allows serverless environments to send internal traffic directly into your VPC.",2,,
+Topic 1 Qn 152,152,D,"Option D uses native tools efficiently. You can use gsutil hash -c to calculate the CRC32C fingerprint of your local file on-premises. Then, you use gsutil ls -L to fetch the metadata (including the hash) of the file and compare the two fingerprints.
+
+A and C are incorrect as they require the files to be downloaded back from cloud storage  - increase costs and efforts
+
+B is incorrect - develop custom java app to compute hash means increased efforts",2,,
+Topic 1 Qn 153,153,A,"Extracts all necessary request latency metrics 
+Not B - Cloud trace is for monitoring & visualizing latency. Not designed for continuous metric collection and setting alert policies
+Not C - Cloud profiler used to monitor CPU & memory usage of app functions. Doesnt measure request latency SLOs and cant trigger latency alerting policies
+Not D -  Anthos Config Management is a iaac & policy management tool - not a observability platform",3,,
+Topic 1 Qn 154,154,A,"A reduces latency with working infrastructures. 
+Option B and D  are incorrect as both do not help reduce latency for users in Asia. 
+Option C is out as kubemci is a legacy tool. Would have been the go to if it was changed to Ingress for Anthos as google’s load balancer can still route to the next healthy cluster. 
+",3,,
+Topic 1 Qn 155,155,D,"Rightsizing helps with optimization resources. It matches the on-prem VM initially
+Not A - autoscaling solves traffic scaling, not right-sizing + doesnt identify optimal machine type
+Not B - Migration is from VM-based app - so may not be container ready for dockerfile
+Not C - creating multiple VMs and doing guess-and-check to find optimal is not cost effective
+",3,,
+Topic 1 Qn 156,156,C,For Data Exfiltration it will always be VPC Service Control,3,,
+Topic 1 Qn 157,157,D,,3,,"
+You can only specify node affinity labels on a node template. You can't specify node affinity labels on a node group
+https://docs.cloud.google.com/compute/docs/nodes/sole-tenant-nodes#node_templates 
+
+Answer: D"
+Topic 1 Qn 158,158,B,"Option B - Allows Minimal Code Changes due to using Linux VMs. Allow auto-scaling which allows to run multiple VMs instances simultaneously which reduces the time to finish the test suite.
+Definitely not D. A is not right as there was no mention of a network in the question. 
+C is not right as Dataproc is a data service, not related to the question.
+",3,,
+Topic 1 Qn 159,159,C,hey antonio,4,,
+Topic 1 Qn 160,160,D,???,4,,
+Topic 1 Qn 161,161,C,"Option A wrong: Stackdriver is for alerting. Option B wrong: it finds the vm creation but question is asking for network origin creation. Option D wrong: impractical and only shows who logged in recently, nothing about the origin, also the logs inside the system could have been tampered with.Option C right: focus on logging, selection of network events and create/insert entry displays JSON code string which contains creators' email and the action. ",4,,
+Topic 1 Qn 162,162,D,"reason why its not A and C is because its entirely manual process so they are wrong. Then for B, although, it is something you are able to do on GCP, because you first need to share the snapshot between the 2 projects across different zones, and we are looking for a easy process. so the more correct option would be D (which is the standard procedure).",4,,
+Topic 1 Qn 163,163,B,They offer exceptionally high IOPS and ultra-low latency compared to standard Persistent Disks,4,,
+Topic 1 Qn 164,164,ABF,"Safe and effective load testing requires isolating the test environment (B), measuring core database performance (A), and collecting detailed metrics (F) to find bottlenecks without risking live production.",4,,
+Topic 1 Qn 165,165,B,"A is incorrect: Project Owner (Over-priviledged)
+C is incorrect: Org Admin has full power at Organization level (Over-priviledged)
+D is incorrect: Couples Project Owner (over-privileged) with Network Admin (allows modifying network resources, not required)",1,,
+Topic 1 Qn 166,166,BE,"It's faster than the choice D & E. D is valid but since the question prioritizes release speed, B & E is the more appropriate choice.",1,,
+Topic 1 Qn 167,167,C,The other choices are too laborious/manual/disruptive.,1,,
+Topic 1 Qn 168,168,AC,"Choice A is the most simple & efficient task to do, B uses persistent disk to store data which is not ideal, D is setting us up for failure because a single VM creates a single point of failure, so C is the other choice to pick ",1,,
+Topic 1 Qn 169,169,BC,"Compute engine can easily be eliminated, leaving us with just B and C.",1,,
+Topic 1 Qn 170,170,C,"C is the only choice which mentioned signatures, the other methods are too primitive.",1,,
+Topic 1 Qn 171,171,C,"Option A is a hassle and costly.
+Option B lets developers have access to production projects.
+Option D is creating outside of the organization.",2,,
+Topic 1 Qn 172,172,D,"Option A and C, gcs-fuse will make it slow.
+Option B is expensive as the instance will need to scale up to match the demand.",2,,
+Topic 1 Qn 173,173,A,"a is correct as standard logs are retained for typically 30 days so the filter to export the logs to the cloud storage bucket is most appropriate to keep the logs for a year. b is wrong as it captures traffic metadata not the logs that the team wants. c is wrong as the dashboard just visualises the data and does not save it, so if the logs have expired after 30 days the dashboard is also not going to be able to display them. d is wrong because pub sub is a messaging service not an archival storage solution and it only retains messages for a maximum of 31 days",2,,
+Topic 1 Qn 174,174,A,"Process and Store data without any of the PII
+Answer is A
+B, C both hold the data in a cloud bucket including the PII
+D has two issues first is asking external partners for the solution and second skipping data in columns that have PII may not be thorough enough
+A modifies the data before storage with DLP and satisfies all the requirements",2,,
+Topic 1 Qn 175,175,A,"A: Aggregated log sink dynamically cascades the logging rule downward to every single child project in Production.
+Not B as it pull logs from every single project 
+Not C and D as it requires you to create log exports in each production project. C doesn't capture logs for new production projects and D requires granting of IAM access to run queries on the datasets.
+",2,,
+Topic 1 Qn 176,176,A,"Key pointers to take note are logs to be kept for 2 years, solution compliant, minimizes costs
+B is incorrect as cron job does not have bucket lock
+C and D are incorrect because of setting time_partitioning_expiration to 30 days which fail requirement
+By process elimination A is correct as it fufills the requirements",2,,
+Topic 1 Qn 177,177,A,"A: It strictly prohibits anyone from granting IAM roles to users or service accounts that do not belong to your approved Cloud Identit. 
+Option B: it applies the wrong constraint. Blocking the creation of service accounts prevents developers from creating service accounts for automation 
+C: External user can be granted user and download sensitive data and only get deleted 59 mins later. 
+D: Giving a technical user ""Project Owner"" at the root level and leaving its credentials on a Compute Engine instance running a cron job introduces a massive security risk",2,,
+Topic 1 Qn 178,178,C,"D is wrong as it doesn't solve the root cause, requiring more costs as well
+A is wrong as it HBase and NodeJS are just interfaces and will not deal with the cluster
+B is wrong as deleting does not solve the solve the active issue",3,,
+Topic 1 Qn 179,179,C,"The best practice is to include the use of an authorised view, used for security to share data without giving direct access to the source. 
+A and D are wrong as both do not create authorised views, causing  the DS team to access the PII 
+B is wrong as creating materialised views is for query optimisation, not security ",3,,
+Topic 1 Qn 180,180,B,"Cloud-to-Cloud transfers using STS is entirely free only pay standard data egress                                                          A - gsutil not suitable for large scale 3rd party transfers and too slow for 10 TB 
+D - Download and re-upload is costly and slow and not scalable
+C - too expensive and slow requires physical device to be shipped 
+",3,,
+Topic 1 Qn 181,181,C,"A and D is wrong as we cant guarantee that the OS will execute the script successfully
+Both options still require the dying VM’s internal shutdown script to execute successfully.
+B is out as restarting the script during shutdown process can create an infinite loop",3,,
+Topic 1 Qn 182,182,A,"Browser-based CLI on GCP environment preventing the need to install or configure. B requires the maintenance of a VM, C and D requires installing and maintenance on every device.",3,,
+Topic 1 Qn 183,183,C,"A - Cannot VPC Peering as there are overlapping subnets between the networks. But questions claimed no overlapping subnets hence cannot be A. As, It states not overlapping subnets on the application but not the network.
+B - Migrating and Re-launching is a massive untaking.
+D - SSH is unstable and non-scalable application-level workaround.
+",3,,
+Topic 1 Qn 184,184,A,"Question is asking to find the underlying issue. A monitoring tool and logs are used to detect such issues. Hence the answer would be A.
+Other answers are reactive solutions, not analysing the issue",3,,
+Topic 1 Qn 185,185,A,,4,,
+Topic 1 Qn 186,186,C,reduced infrastructure costs without compromising the application's availability.,4,,
+Topic 1 Qn 187,187,B,,4,,
+Topic 1 Qn 188,188,A,"VPC Peering designed to connect 2 VPC network so that instances can communicated using their internal IP Address, regardless whether they are same/different project/orgranization. With VPC Peering connecting 2 networks via Google private, traffic does not traverse public internet, hence latency is minimized and throughput is maximized. VPC Peering is also efficient to setup, compared to gateway instances or complex tunnel management. Option B wrong: Cloud VPN would work to connect the 2 VPC, but it is sub-optimal for this scenario as Cloud VPN routes traffic through an IPSec tunnel, which adds processing overhead (encapsulation/decryption), resulting in higher latency and lower throughput compared to a more direct path solution provided by VPC Peering. Cloud VPN should be used only when connecting to on-premises or 3rd party cloud. Option C wrong: IAP is for secure admin access, not for network communication. Option D wrong: Massive operational overhead, introduces single point of failure (the VPN instances), and performs worse than native solution. ",4,,
+Topic 1 Qn 189,189,B,Object Versioning is a feature that allows you to store multiple versions of an object in Cloud Storage.,4,,
+Topic 1 Qn 190,190,C,"By changing the filter to combine used, buffered, cached, and slab, you are instructing the autoscaler to aggregate all memory that isn't completely free",4,,
+Topic 1 Qn 191,191,A,"It gives you Google's 99.99% uptime guarantee without making you pay for extra, unnecessary hardware.",4,,
+https://www.examtopics.com/exams/google/professional-cloud-architect/view/4/,,,,,Q: 192 - 267,
+Topic 1 Qn 192,192,A,,1,,"A signed URL gives time-limited read or write access to a specific Cloud Storage resource. Your App Engine backend generates this URL securely and passes it to the client's browser. The browser can then use this URL to perform a POST or PUT request to upload the file directly to Cloud Storage without needing Google credentials or IAM roles.
+
+CORS Configuration (Browser Security): Because the browser is viewing a website hosted on App Engine (e.g., example.appspot.com) but sending a request to Cloud Storage (storage.googleapis.com), the browser will block the request due to Same-Origin Policy unless Cross-Origin Resource Sharing (CORS) is configured. Setting a CORS configuration on the target bucket allows it to accept incoming requests from your App Engine application's domain."
+Topic 1 Qn 193,193,B,,1,,"Private Google Access lets you access Google APIs and services in Google's production infrastructure e.g. YT, Gmaps
+bastion host is when external needs to access an instance w/o public IP
+cloud NAT(Network Address Translation) is used to reach to internet services without public IP while still preventing the public internet from initiating a connection to them
+
+IAP is for application-level access control instead of relying on network-level firewalls"
+Topic 1 Qn 194,194,D,,1,,C or D but according to official docs need to use sole tenant https://cloud.google.com/compute/docs/images/creating-custom-windows-byol-images#use_the_custom_image 
+Topic 1 Qn 195,195,A,,1,,"100% system availability = HA setup will give 99.99%
+Classic VPN only 99.9% SLA 
+cost optimization so cannot be two HA cloud VPN"
+Topic 1 Qn 196,196,D,"10TB = 10 000GB = 80 000 Gb so 80 000Gb/1Gbps = 80 000 seconds = 22 hrs which is way less than the one week transfer appliance take at min. B would violate ""You want to minimize the time it takes to complete this activity and the overall cost""",1,,https://cloud.google.com/storage-transfer/docs/transfer-options  B
+Topic 1 Qn 197,197,A,"only option A contains the retention lock line, which is fit for the question scenario",1,,"retention lock to prevent bucket from being modified or deleted
+
+B and D is applied on the organisation, not needed
+C: encrypts, but doesn't prevent deletion/overwriting
+A: retention policy prevents accidental deletion + lock prevent policy from being modified"
+Topic 1 Qn 198,198,D,Key words: both APIs need to be working,2,,"A: might require a new DNS record
+B: doesn't require the old API to be kept
+C: more complex, rather use load balancer to handle routing"
+Topic 1 Qn 199,199,C,"the current policy uses multiple AND statements on the same metric data point, but there can only be one state at a time so the filter returns no data",2,,"probably can't fit all the conditions since using AND operator. 
+
+state = 'cached': Memory used for caching disk reads.
+state = 'buffered': Memory used for I/O buffers.
+state = 'used': Active application memory (excluding cached/buffered memory)
+
+metric.label.state = 'slab' is a specific filtering condition used in Cloud Monitoring to isolate kernel slab memory usage on a Linux Virtual Machine
+
+GAUGE is the correct target type for memory utilization metrics, which fluctuate up and down over time. DELTA_PER_MINUTE is used for cumulative/rate-based metrics (like counting errors or log entries over time)."
+Topic 1 Qn 200,200,B,"Question states there is an existing VPN tunnel and the priority is avoiding data exfiltration. A,D are ways of accessing resources. C manages identity but the roles still allow downloading and execution of code. Thus none of the options effectively prevent data exfiltration",2,,"VPC Service Controls define a security perimeter around Google Cloud resources to constrain data within a VPC and mitigate data exfiltration risks.
+Private Google Access access Google APIs and services in Google's production infrastructure. "
+Topic 1 Qn 201,201,,,2,,"VM Manager is a suite of tools to manage, govern, and patch VMs. https://docs.cloud.google.com/compute/docs/vm-manager 
+
+Config Sync is to manage configurations inside Kubernetes clusters (Anthos/GKE). 
+Cloud Build and Cloud Deploy form a CI/CD pipeline service for building and deploying application containers.
+Cloud Scheduler (a trigger not an executor) to schedule virtually any job, including batch, big data jobs, cloud infrastructure operations. allows you to automate virtually any task by triggering actions on a time-based schedule. It natively supports three types of targets:
+HTTP/S endpoints: Triggers public or private webhooks, Cloud Functions, or Cloud Run services.
+Pub/Sub topics: Broadcasts a message to a topic to kick off asynchronous, decoupled workflows.
+App Engine HTTP requests: Triggers specific handlers within an App Engine application"
+Topic 1 Qn 202,202,B,"By process elimination, remove A as it lacks advanced visual data-mapping tools, remove C and D as they are data analytics and replication tools that to not provide transformation. Best choice is B as it is an Integration Platform as a Service (iPaaS) and have all the tools which includes built-in enterprise connectors, visual data mapping and transformation and real time consistency",2,,"Application Integration is Integration Platform as a Service (iPaaS) to connect your applications visually to point-and-click configurations. https://cloud.google.com/application-integration?hl=en  
+
+Workflows is a fully managed, serverless orchestration service. It allows you to seamlessly chain together microservices, Google Cloud products (like Cloud Run or BigQuery), and external HTTP APIs."
+Topic 1 Qn 203,203,"A, B","The question states that the site serves static content and the requirements are to reduce latency to world users.
+So we choose option:
+A - Routes users to the nearest healthy instance Reduces latency globally
+B - Attaches to load balancer, Cloud CDN caches these files close to users worldwide.",2,,"Media CDN is Google Cloud's media delivery solution. Media CDN complements Cloud CDN, which is Google Cloud's web acceleration solution. Media CDN is optimized for high-throughput egress workloads, such as streaming video and large file downloads."
+Topic 1 Qn 204,204,"B, E",So we choose option:,3,,"""understand and manage costs"" labels allow you to filter, group, and analyze your spending.
+IAC consistent, cost-optimized configurations "
+Topic 1 Qn 205,205,B,A - Routes users to the nearest healthy instance Reduces latency globally,3,,"AlloyDB in default configuration comes with only a private IP by default, sits inside your VPC network. 
+
+Cloud Run is a serverless platform. When your application runs inside Cloud Run and wants to connect to anything on the internet, its outbound traffic routes over the public internet by default. 
+
+not D: resolve the issue as quickly as possible. migration will take time
+
+Tell Cloud Run to stop sending traffic out to the public internet and instead plug directly into your internal network -> Enabling Direct VPC Egress on your Cloud Run service acts like running a private virtual network cable from the serverless container straight into your project's VPC network. -> Cloud Run can successfully route traffic using the private internal IP address, and your application will instantly connect to AlloyDB. https://docs.cloud.google.com/alloydb/docs/quickstart/integrate-cloud-run  "
+Topic 1 Qn 206,206,A,"B - Attaches to load balancer, Cloud CDN caches these files close to users worldwide.",3,,"Artifact Analysis is for software composition analysis, metadata storage and retrieval. Its detection points are built into a number of Google Cloud products such as Artifact Registry and Google Kubernetes Engine (GKE) for quick enablement. The service works with both Google Cloud's first-party products and also lets you store information from third-party sources. The scanning services use a common vulnerability store for matching files against known vulnerabilities. Can run automatically or on-demand scans container images pushed to Artifact Registry for vulnerabilities.
+
+https://docs.cloud.google.com/artifact-analysis/docs/artifact-analysis  
+
+Binary Authorization ensure only authorized and digitally signed container images/build images are deployed."
+Topic 1 Qn 207,207,C,private endpoints,3,,"""(GKE) cluster with a private endpoint."" only way to interact with this GKE cluster is if you are in the same VPC as this GKE cluster.
+By default, when you run a build on Cloud Build, the build runs in a secure, hosted environment with access to the public internet. https://docs.cloud.google.com/build/docs/private-pools/private-pools-overview 
+https://docs.cloud.google.com/build/docs/overview#default_pools_and_private_pools 
+Private pools are private, dedicated pools of workers that offer greater customization over the build environment, including the ability to access resources in a private network.
+
+GKE (Google Kubernetes Engine): This is where your application actually runs. 
+Cloud Build is responsible packaging the app and build the container image. Use runtime workers (worker pool) is in public internet by default -> so cant communicate to GKE cluster. -> create Cloud Build Private Pool in the same VPC 
+Cloud Deploy delivery pipeline is a fully managed, opinionated continuous delivery service that automates the promotion of your applications through a predefined sequence of target environments (e.g., Development -> Staging -> Production)"
+Topic 1 Qn 208,208,D,Migration center supports SAP workloads + Use Googles in-built automated discovery tool,3,,"https://docs.cloud.google.com/migration-center/docs/migration-center-overview let you estimate your cloud costs, scan and assess your infrastructure, and plan your migration without making changes to your applications or workloads.
+https://docs.cloud.google.com/migration-center/docs/estimate/overview"
+Topic 1 Qn 209,209,,,3,,
+Topic 1 Qn 210,210,D,Retrieval cost for Coldline is cheaper,4,,"Standard: Best for frequently accessed data (hot data) and website hosting.
+Nearline: Low-cost, highly durable for data accessed less than once a month.
+Coldline: Highly durable, low-cost storage for data accessed at most once a quarter.
+Archive: Lowest-cost, highly durable storage for disaster recovery, backups, or data accessed less than once a year."
+Topic 1 Qn 211,211,B,Key word: pre trained model,4,,"Leverage on pre-trained model first. strict data residency constraint. 
+Now known as model garden. Download, manage, and deploy the model directly inside the me-central1 (Qatar) region. 
+Cloud Natural Language API is to handle general entity recognition and sentiment analysis, content classification but cannot generate summaries. "
+Topic 1 Qn 212,212,B,API management with Apigee,4,,"goal is to break the monolith down into distributed, modern microservices -> the API structure itself might change.
+
+Apigee is Google Cloud's API management and API gateway platform -> provide a stable endpoint to external consumers -> even when backend monolith app changes to microservices, Apigee will handle the routing and protocol translation."
+Topic 1 Qn 213,213,A,Using VPC Peering to limit direct network access,4,,"""organization uses separate Google Cloud projects for shared services, development, testing, and production"" requires a Hub-and-Spoke network topology, where the Shared Services project acts as the ""Hub"" and the environment projects (dev, test, prod) act as the ""Spokes"".
+
+Private Communication: By creating a separate VPC in each project and establishing VPC Network Peering between each environment VPC and the Shared Services VPC, you allow private, internal IP communication. peering is non-transitive. This means if VPC Dev is peered with VPC Hub, and VPC Prod is peered with VPC Hub, traffic cannot transit through the Hub to go from Dev to Prod. 
+
+A full mesh topology means every VPC is peered directly with every other VPC (e.g., Dev peered directly to Prod). This completely defeats the security requirement.
+
+configure a single Shared VPC and attach all projects to it, all environments would live within the same underlying network infrastructure. In a single VPC, resources can inherently communicate with each other across subnets by default"
+Topic 1 Qn 214,214,C,Default method to limit direct access to Cloud Run service,4,,
+Topic 1 Qn 215,215,A,Only limit the production folder,4,,
+Topic 1 Qn 216,216,C,,1,,"audit trail = audit logging
+
+DaemonSets are typically used for background tasks or system-level agents that must be present on every machine E.G. monitoring agents"
+Topic 1 Qn 217,217,C,,1,,"application code and the database schema updates. Separate pipelines to decouple your stateless infrastructure changes from your stateful database changes.
+
+rolling update deployment incrementally replaces old version with new version using traffic split. 
+blue-green deployment - 2 equal setup"
+Topic 1 Qn 218,218,C,,1,,
+Topic 1 Qn 219,219,D,,1,Altostrat,"""Google-recommended solution that is easy to integrate and provides Altostrat with control and auditability of the encryption keys""
+A. Google-managed encryption keys so lesser control by Altostrat
+B. While Google-managed keys protect data at rest by default, they do not give Altostrat control over key rotation/destruction.
+C. HashiCorp Vault instance is 3rd party which is to avoid
+
+Cloud Storage automatically encrypts all data at rest on the server side using the Advanced Encryption Standard (AES-256) before it is written to disk. This is enabled by default at no additional charge and requires no configuration. 
+
+Google automatically owns, manages, and rotates the symmetric key encryption keys on your behalf."
+Topic 1 Qn 220,220,B,"Save money + batch + interruptible, sign me up for Spot",1,Altostrat,"""jobs are not time-critical and can tolerate occasional interruptions"" -> use spot VM"
+Topic 1 Qn 221,221,A,,1,Altostrat,"B. Load testing is a type of performance testing used to determine how a system behaves under a specific expected volume of traffic
+C. tests the integration of all microservices, databases, and external UIs working together
+D. Integration testing focuses on verifying the communication and data transfer between two or more microservices or components"
+Topic 1 Qn 222,222,B,Key words: Analyse performance,2,Altostrat,"""analyze the performance of its media processing pipeline running on Java-based Cloud Run function"". 
+B. Cloud Profiler is a continuous profiling tool designed explicitly to analyze application performance. It measures CPU utilization, memory allocation, and other resource-intensive functions within your code
+
+A. Cloud Logging is to capture logs and event entries
+C. Cloud trace is to measure latency (the time a request takes to travel between interconnected services or microservices)
+D. (formerly Cloud Debugger) is used to inspect the state of an application at a specific line of code in production without stopping it."
+Topic 1 Qn 223,223,C,"Google Cloud Armor is specifically designed to protect against DDoS attacks at the different layers. A, B, D are wrong because VPC Service Controls do not block DDoS traffic, and Cloud NGFW is not built to absorb high volumn DDoS attacks, then SCC only monitors and detects security threats.",2,Altostrat,"""Distributed Denial of Service (DDoS) attacks"" - Cloud Armor
+
+Next Gen FW is a distributed, modern cloud firewall service, inspects traffic at the application layer to identify and block network-based threats, Layer 7 application control. cannot absorb the volume of DDoS attacks.
+SCC is central vulnerability scanning, risk management, and threat detection platform. it's a monitoring tool but does not provide active, real-time edge inline mitigation to drop DDoS traffic "
+Topic 1 Qn 224,224,C,"A,B are dealing with authentication and authorisation. D prevents abuse through securing the endpoint. But since the focus is on cost management, C is the only one that addresses that with quota policies",2,Altostrat,"""control the total number of API calls for cost management."" set Quota"
+Topic 1 Qn 225,225,,,2,Knightmoves,"""replicate the deployment of the application across multiple locations"" 
+
+
+D. multi-cluster Gateway works as a centralized load balancer for applications that run across two GKE clusters in different regions. Routing external requests to the correct cluster and load balancing globally.
+https://docs.cloud.google.com/kubernetes-engine/docs/concepts/multi-cluster-gateways  "
+Topic 1 Qn 226,226,C,The question is targetting specific vehicle and specific time interval so options A and B are poorly ordered. Option A uses sensor category first means data for every single vehicle is randomly scattered where option B uses timestamp which is bad for Bigtable data storage as it an anti-pattern. Option C is the best as VehicleId then EventId and then Timestamp explicitly match the question and the order is according to most unique.,2,Knightmoves,"a ""multi-tenancy"" use case, a scenario in which you store similar data. 
+often retrieve data based on the time when it was recorded, you can include a timestamp as part of your row key. [vehicle_id]#[event_id]#[timestamp]"
+Topic 1 Qn 227,227,A,"227 By setting the CPU request just above normal usage, you avoid hoarding unneeded CPU on the node, freeing it up for other workloads (optimising efficiency). Meanwhile, keeping the higher CPU limit in place allows the Pod to ""burst"" and grab extra CPU during sudden traffic spikes (maximising flexibility).
+Basically, it gives the best of both worlds:  reserving only what is typically needed, but keep the freedom to use more when it counts.",2,Knightmoves,"https://docs.cloud.google.com/kubernetes-engine/docs/concepts/verticalpodautoscaler  
+
+B. removes all burst flexibility and forces the scheduler to allocate the maximum amount of CPU permanently to every Pod
+C. vertical Pod autoscaling evicts a Pod if it needs to change the Pod's resource requests. dangerous for Stateful Pods. can disrupt network connections, trigger database resyncs, or cause brief downtime.
+D. scales workloads by adding or removing copies (replicas) of Pods. HPA is not the appropriate mechanism to fix individual over-allocated container sizing"
+Topic 1 Qn 228,228,D,"A is a reactive approach, B and C do not restrict users from deploying in other regions",3,Knightmoves,enforce at org level policy
+Topic 1 Qn 229,229,A,Pub Sub Pull is used for unreliable network connectivity. Push subscriptions is fragile as it needs the plant's system to be reachable at all times. ,3,Knightmoves,modernize database and to handle parsing issue. centralize copy and the rest just read from the primary instance. 
+Topic 1 Qn 230,230,A,"C and D are wrong as de-identified information cannot be used for training of the AI model. CMEK is great for storage, but it does not provide the in-memory, in-use protection during the actual training process that Confidential Computing provides",3,Knightmoves,"BigQuery column-level encryption allows you to encrypt individual values within a table column. ""personalized recommendations""
+
+C & D didn't mention on where the data will be stored. BQML, stores data in BQ and can use it for training your models. Removing the PII data can affect the accuracy of the personalized recommendations."
+Topic 1 Qn 231,231,C,Premium tier with a cloud interconnect,3,Knightmoves,"""ensure a guaranteed bandwidth and low latency between the plants and Google Cloud resources"""
+Topic 1 Qn 232,232,,,3,Knightmoves,
+Topic 1 Qn 233,233,A,principle of least privilege ,3,Knightmoves,"B. full permissions -> uncontrolled use of resources -> manual way of governance
+C. uncontrolled spin up of resources with Project Creator role
+D. creates more operational administrative overhead "
+Topic 1 Qn 234,234,B,question is not on data quality as unpredictability in economic status does not mean bad quality data,3,Knightmoves,
+Topic 1 Qn 235,235,D,,4,,"""data exfiltration"" use VPC service controls which is a perimeter-based boundaries around cloud resources and managed services. 
+
+Jupyter notebook-based development environments to build, train, and deploy machine learning models and AI applications."
+Topic 1 Qn 236,236,C,vertex ai feature store has capability for measuring latency.,4,,
+Topic 1 Qn 237,237,A,deploy active managed instance groups (MIGs) (RTO) & use a cross-region read replica (RPO). Not B because Terraform might take longer than 2 hours,4,,
+Topic 1 Qn 238,238,D,"500tb, existing shared 1Gbps",4,,https://docs.cloud.google.com/storage-transfer/docs/transfer-options 
+Topic 1 Qn 239,239,A,scheduled workload,4,,
+Topic 1 Qn 240,240,B,Optimal mix of cost and high availability,4,,need to minimize costs so A is overkill
+Topic 1 Qn 241,241,"B, D",Best choices for serverless data processing and analysis,4,,didn't mention of Hadoop or Spark so no need for Dataproc
+Topic 1 Qn 242,242,D,"""Minimal operational overhead - Backup and DR service is a fully managed, turnkey solution
+Protect against zonal failures - Backup and DR service allows backups to be stored natively across zones/regions
+Retained for at least 90 days - A backup vault with a retention policy guarantees data cannot be deleted before 90 days,
+Stored in a separate project with limited access - Backup vaults in the Backup and DR service can be centrally managed in a separate management/security project, separating duties cleanly. Access can be controlled using IAM
+
+A is incorrect: Writing custom backup scripts introduces massive operational overhead
+B is incorrect: relies on custom gcloud scripts (high overhead).Still need to export snapshots to regional Cloud Storage bucket using pipelines.
+C is incorrect: Using a script to move and store them in a multi-regional bucket introduces custom code maintenance
+Never pick the script option if a native managed service exists unless the managed service is overly expensive.""",1,,
+Topic 1 Qn 243,243,BC,"B - memorystore for redis allows for cachign which reduces latency
+C - cloud cdn allows for caching of static assets so they can be delivered to users quickly",1,,
+Topic 1 Qn 244,244,B,"containerized + low overhead = cloud run, multi-region + write-heavy = spanner",1,,
+Topic 1 Qn 245,245,C,Vertex AI + workbench for Jupyter,1,,
+Topic 1 Qn 246,246,C,Most complete migration,1,,
+Topic 1 Qn 247,247,C,"firewall rules and service accounts are what allow such granular traffic flow, the other options are incomplete or irrelevant",1,,
+Topic 1 Qn 248,248,B,Transfer Appliance is GCloud's thing designed for petabyte-scale,1,,
+Topic 1 Qn 249,249,D,"Question is asking for recovery & retention.
+Option A still allows deletion at any time
+Option B only serves as a backup
+Option C serves more as an archive tool, file can still be modified or deleted by admin",2,,
+Topic 1 Qn 250,250,A,"option A.
+it uses google group, with the iam conditions easily set to expire the access on 1 nov automatically, and cloud audit logs can record which auditor's email address accessed the bucket. option b is wrong as it uses service accounts to generate signed urls, so it is not possible to trace who accessed it, option c is wrong because it overcomplicates the process by using custom code in cloud run when there is already a native feature doing the same thing with iam. option d is wrong because it uses a 1 month session duration so if the auditors do not access the bucket on 1 oct their access may spill over into november",2,,
+Topic 1 Qn 251,251,D,"Automatically build and deploy app to cloud run securely and efficiently
+Not A because Config Sync is not used to deploy to cloud run but instead GKE/Anthos
+Not B keys should never be in source code
+Not C as the credentials for deployment do not need to be stored
+Answer is D, security is handled in the bg with OAuth, the deployment method is correct with build triggers",2,,
+Topic 1 Qn 252,252,,"C > HSM protection: When you create a key with this level, the key material is physically generated inside and never leaves the boundaries of that hardware chip. Google completely manages the scale and uptime for you.
+Not A because massive operational risks as your developers have to manually pass raw cryptographic string keys inside the header of every single API call they make to interact with data. 
+Not B beause in SOFTWARE Protection Level means moving data out of HSM into a software tier, keys are now sitting in regular cloud software memory. 
+Not D because now your infra team have to maintain the physical on-premises HSM hardware.
+",2,,
+Topic 1 Qn 253,253,C,"Key points in question are RTO less than 10 and RPO of 2 and protecting against full regional outage and low operational complexity.
+
+A is incorrect as RPO 2 minutes
+B is incorrect as DMS is for migrating databases to google cloud
+D is incorrect as HA protects against zone failures within a single region. 
+
+C is most appropriate as meet the questions key requirements as data has cross-region protection and option has low operational complexity as it is a straightfoward set up",2,,
+Topic 1 Qn 254,254,B,"Eliminate static keys - service account impersonation. 
+Proper governance - require manual approval before running terraform",2,,
+Topic 1 Qn 255,255,A,C and D  Testing is done locally + Acceptance test should be executed before deploying to production,3,,
+Topic 1 Qn 256,256,C,"Not A as config sync is used for consistency. It doesn't handle cloud resources like databases or storage buckets.
+Not B because it’s too troublesome to create custom
+Not D because high operational costs - goes against questions requirements",3,,
+Topic 1 Qn 257,257,"B,D","Not A as the bottleneck is the use of only one region + doesn’t improve global latency
+Not C as increasing machine size does not move the data closer to EU and asia
+Not E as read replicas are for read queries, not for static assets + problem is static content not database queries",3,,
+Topic 1 Qn 258,258,C,"A - moving the data to filestore is expensive(data duplication), Filestore is used for high frequency read and write operations.
+B has more overhead operations as compared to directly mounting the Cloud Storage bucket 
+D is wrong as downloading data for use has high latency, not acting like a local file system + high storage cost
+",3,,
+Topic 1 Qn 259,259,B,Attached persistent disks for data persistence and spot VMs can implement checkpoint mechanisms to save and resume data in case of interruptions. ,3,,
+Topic 1 Qn 260,260,A,"B - does not separate the different departments + creates a unmanaged flat file structure
+C - it is not Google best practice, and it will be hard to manage and track the company’s overall resources and billing 
+D  -not google best practice. Will need to manually manage all projects for a given department instead of a single folder + hard to manage at scale
+",3,,
+Topic 1 Qn 261,261,D,GKE autopilot removes the need for managing on nodes and is fully managed by Google Cloud which allows the engineering team to focus on application development.,3,,
+Topic 1 Qn 262,262,C,"Best option to reduce alert fatigue, and ensure that the notifications are critical only",4,,
+Topic 1 Qn 263,263,,,4,,
+Topic 1 Qn 264,264,D,"Config sync is Google's config management tool that allows you to define cluster configs & automatically sync it to all clusters (regardless if its GKE, EKS, or on-premises). Policy Controller is Google's implementation of OPA Gatekeeper, which allows enforcing policies across every cluster in the fleet. Option A wrong: Argo CD & OPA are viable, but avoid building custom infra, when managed services like Config Sync are available. Option B wrong: Crossplane, FluxCD, Kyverno are not Google recommended products. Option C wrong: Script to enforce security policies is wrong, too complex and manual.",4,,
+Topic 1 Qn 265,265,BC,Google-maintained base images (secure) and artifact analysis is the tool for stopping deployment when vulnerabilities are found,4,,
+Topic 1 Qn 266,266,C,"Google Cloud centralizes its official third-party audit reports, certifications, and compliance documentation within the Compliance Reports Manager",4,,
+Topic 1 Qn 267,267,A,"In an emergency, always use native tools to get immediate visibility rather than building custom solutions from scratch.",4,,
+New Qn,268,D,"D is correct
+(Utilize Infrastructure as Code (IaC) tools, such as Terraform, to define and manage infrastructure configurations.)
+
+Keywords that lead to this answer: ""streamline the creation"", ""automate the provisioning and management"", and ""consistently configured"".
+
+In GCP, Terraform is the gold standard for defining, provisioning, and managing cloud infrastructure through declarative configuration files. By utilizing Terraform modules, EHR Healthcare can build a standardized ""landing zone"" or environment template for new insurance providers. This ensures every environment is identical, auditable, and secure, while drastically cutting down on infrastructure administration costs.",NA,EHR,
+New Qn,269,C,"C is correct
+(Configure Workload Identity Federation with Active Directory to enable authentication and authorization for applications across both Kubernetes environments.)
+
+Keywords that lead to this answer: ""unauthorized access... due to compromised credentials"", ""secure access between on-premises... and GKE"", and ""integrating with EHR's existing identity provider (Active Directory)"".
+
+Workload Identity Federation is Google Cloud's recommended best practice for allowing external workloads (like on-premises apps) to access GCP resources securely without using long-lived Service Account keys.",NA,EHR,
+New Qn,270,A,"A is correct
+(Use the Database Migration Service (DMS) to migrate the MySQL databases to Cloud SQL)
+
+Keywords that led to this answer: ""migrate the legacy relational database"", ""maintain the strict uptime requirements"" (99.9%), and ""limited in-house expertise"".
+
+Database Migration Service (DMS) automates the replication and cutover process from on-premises MySQL to Cloud SQL",NA,EHR,
+New Qn,271,B,"B is correct
+(Utilize Storage Transfer Service (STS) to migrate objects to the destination bucket in the target region. Once the transfer is complete, delete the original source bucket objects.)
+
+Keywords that led to this answer: ""migrate more than 2 TB"", ""interrupted, the operation must resume"", and ""copy only new or modified objects"".
+
+Storage Transfer Service (STS) is Google Cloud's highly scalable, fully managed service for moving data into and across Cloud Storage buckets.
+",NA,,
+New Qn,272,B,"B is correct.
+(Use the Google Cloud Migration Center to perform an automated discovery and assessment of the on-premises environment)
+
+Keywords that led to this answer: ""detailed migration plan"", ""identify dependencies"", ""estimate the total cost of ownership (TCO)"", and ""minimal effort"".
+
+Google Cloud Migration Center is a unified platform that assists in your migration journey from discovery to cost estimation
+",NA,,
+New Qn,273,A,"A is correct 
+(Export your dashboard to a JSON file and share it with the Ops team)
+
+Keywords that led to this answer: ""similar dashboard"", ""monitor the production environment"", and ""minimize time and effort"".
+
+In Google Cloud Monitoring, every dashboard is backed by a structured JSON definition.",NA,,
+New Qn,274,D,"D is correct. 
+(Use dependency mapping to group application components into waves, create a phased migration plan, and incorporate performance testing for each wave)
+
+Keywords that led to this answer: ""tightly coupled dependencies"", ""concerned about the risks associated with an 'all-at-once' migration"", and ""systematically addresses application dependencies"".
+
+Google-recommended migration practices dictate discovering application topologies using tools like Migration Center to map dependencies",NA,,
+New Qn,275,C,"C is correct
+(Deploy the application as a Cloud Run service. Configure request-based auto-scaling and use gradual rollouts by splitting traffic between revisions)
+
+Keywords that led to this answer: ""stateless"", ""containerized"", ""unpredictable flash sales"", ""sudden, massive spikes"", and ""safe, fast rollback"".
+
+Cloud Run automatically treats every deployment as an immutable Revision. You can natively split traffic between revisions (e.g., 90% old / 10% new) for safe rollouts, and rolling back is as simple as routing 100% of traffic back to the previous revision via a single API call or toggle",NA,,
+New Qn,276,A,"A is correct.
+(Implement Cloud Trace by ensuring the traceparent header is propagated between microservice calls to link logs to a single trace)
+
+Keywords that led to this answer: ""follow a single user request across all microservices"", ""logs are not correlated"", and ""must not require developers to manually add correlation logic"".
+
+Cloud Trace is Google Cloud's native distributed tracing service designed precisely to track request paths through microservices",NA,,
+New Qn,277,C,"C is correct.
+(Create an owner project with shared reservations, and then configure the production project and development project as consumer projects to consume capacity)
+
+Keywords that led to this answer: ""ensure that the GPU capacity is always available"", ""shift unused GPU capacity from production to development"", and ""follow Google-recommended practices"".
+
+Google Cloud allows you to share reservations across up to 100 projects within the same organization. Google’s official architecture blueprint and best-practice guide explicitly recommend creating a dedicated, administrative ""Owner Project"" to host and manage the shared reservation without consuming any of the resources itself",NA,,
+New Qn,278,C,"C is correct.
+(Create a single regional managed instance group (MIG) configured to span all three zones. 
+Place a regional external Application Load Balancer in front of the MIG, and configure its backend service with a health check)
+
+Keywords that led to this answer: ""highly available and self-healing"", ""automatically recreate the lost capacity"", ""all provisioned compute resources actively serve traffic"", and ""automatically and seamlessly directed away"".
+
+Placing an Application Load Balancer with a Health Check in front of this single MIG ensures that all instances across all zones actively process live traffic simultaneously",NA,,
+New Qn,279,B,"B is correct
+(Enable uniform bucket-level access on the buckets, and grant predefined Storage IAM roles to the Google Groups)
+
+Keywords that led to this answer: ""Google Groups"", ""clear audit trails"", and ""simple to operate and scalable"".
+
+Enforcing Uniform Bucket-Level Access disables legacy object-level ACLs entirely. This ensures that Cloud Storage relies exclusively on unified Google Cloud IAM policies.",NA,,
+New Qn,280,B,"B is correct
+(Create a Filestore Enterprise instance in the same region as the VMs. Mount the Filestore file share on each Compute Engine VM)
+
+Keywords that led to this answer: ""fleet of hundreds of Compute Engine VMs"", ""concurrent, low-latency read and write"", and ""highest possible throughput"".
+
+Filestore Enterprise is engineered precisely for business-critical, high-performance, and highly available concurrent workloads",NA,,
+New Qn,281,B,"B is correct
+(Use Service Catalog to define, govern, and offer a portfolio of approved products. Include Terraform scripts into Service Catalog items.)
+
+Keywords that led to this answer: ""empowers these teams to deploy complete, pre-approved architectural patterns"", ""self-service manner"", and ""avoiding manual approval bottlenecks"".
+
+Service Catalog allows an organization's central cloud platform/security team to curate, govern, and expose a customized menu of approved cloud applications and infrastructure templates to internal users",NA,,
+,,,,,,
+,,,,,,
+ ,,,,,,
