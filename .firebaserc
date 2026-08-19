@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "sisg-project"
-  }
+  },
+  "targets": {
+    "sisg-project": {
+      "hosting": {
+        "sandbox": [
+          "streetsmarts"
+        ],
+        "production": [
+          "sisg-project"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
