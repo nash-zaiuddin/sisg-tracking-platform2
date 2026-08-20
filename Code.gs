@@ -126,12 +126,16 @@ function requireIdentity_(request, trainerOnly) {
   return identity;
 }
 
+let _trackerSpreadsheet_ = null;
 function tracker_() {
-  return SpreadsheetApp.openById(TRACKER_SPREADSHEET_ID);
+  if (!_trackerSpreadsheet_) _trackerSpreadsheet_ = SpreadsheetApp.openById(TRACKER_SPREADSHEET_ID);
+  return _trackerSpreadsheet_;
 }
 
+let _attendanceSpreadsheet_ = null;
 function attendance_() {
-  return SpreadsheetApp.openById(ATTENDANCE_SPREADSHEET_ID);
+  if (!_attendanceSpreadsheet_) _attendanceSpreadsheet_ = SpreadsheetApp.openById(ATTENDANCE_SPREADSHEET_ID);
+  return _attendanceSpreadsheet_;
 }
 
 function getOrCreateSheet_(spreadsheet, name, headers) {
@@ -252,8 +256,10 @@ function normaliseBadgeAssignmentMode_(value) {
   return ['EXPLICIT', 'MANAGED', 'INDIVIDUAL'].indexOf(mode) >= 0 ? 'EXPLICIT' : 'LEGACY';
 }
 
+let _classBadgeSheetCache_ = null;
 function ensureClassBadgeSheet_() {
-  return getOrCreateSheet_(attendance_(), SHEETS.classBadges, HEADERS.classBadges);
+  if (!_classBadgeSheetCache_) _classBadgeSheetCache_ = getOrCreateSheet_(attendance_(), SHEETS.classBadges, HEADERS.classBadges);
+  return _classBadgeSheetCache_;
 }
 
 function readClassBadgeAssignments_(classId) {
@@ -303,7 +309,9 @@ function attendanceCheckpointKey_(email, attendanceDate, classId, courseId) {
   ].join('|');
 }
 
+let _classSheetsCache_ = null;
 function ensureClassSheets_() {
+  if (_classSheetsCache_) return _classSheetsCache_;
   const classes = getOrCreateSheet_(attendance_(), SHEETS.classes, HEADERS.classes);
   const members = getOrCreateSheet_(attendance_(), SHEETS.classMembers, HEADERS.classMembers);
   ensureClassBadgeSheet_();
@@ -313,7 +321,8 @@ function ensureClassSheets_() {
   if (!existingDefault) {
     classes.appendRow([DEFAULT_CLASS_ID, 'Default Class', true, true, true, true, true, true, new Date(), BADGE_COLUMN_SPEC_DEFAULT, 'LEGACY']);
   }
-  return { classes: classes, members: members };
+  _classSheetsCache_ = { classes: classes, members: members };
+  return _classSheetsCache_;
 }
 
 function readClasses_(includeInactive) {
@@ -1386,8 +1395,8 @@ function readClassManagement_() {
     memberships: memberships,
     badgeCatalog: badgeCatalog_(),
     badgeAssignments: readClassBadgeAssignments_(),
-    feedbackLinksByClass: readClassFeedbackLinksByClass_(),
-    examLinksByClass: readClassExamLinksByClass_(),
+    feedbackLinksByClass: readClassFeedbackLinksByClass_(classes),
+    examLinksByClass: readClassExamLinksByClass_(classes),
     projectGroups: readProjectGroups_('ALL', true),
     projectGroupMembers: readProjectGroupMembers_('ALL', true),
     projects: readProjects_('ALL', true),
@@ -1531,8 +1540,8 @@ function readClassFeedbackLinks_(classId, includeDrafts, useGlobalFallback) {
   return result;
 }
 
-function readClassFeedbackLinksByClass_() {
-  return readClasses_(true).reduce(function (result, classConfig) {
+function readClassFeedbackLinksByClass_(classes) {
+  return (classes || readClasses_(true)).reduce(function (result, classConfig) {
     result[classConfig.id] = readClassFeedbackLinks_(classConfig.id, true, false);
     return result;
   }, {});
@@ -1618,8 +1627,8 @@ function readClassExamLinks_(classId, includeDrafts, useGlobalFallback) {
   return result;
 }
 
-function readClassExamLinksByClass_() {
-  return readClasses_(true).reduce(function (result, classConfig) {
+function readClassExamLinksByClass_(classes) {
+  return (classes || readClasses_(true)).reduce(function (result, classConfig) {
     result[classConfig.id] = readClassExamLinks_(classConfig.id, true, true);
     return result;
   }, {});
@@ -1809,6 +1818,47 @@ function readExamResultsMap_() {
   });
   Object.keys(result).forEach(function (email) {
     result[email].history = result[email].history.slice(-10).reverse();
+  });
+  return result;
+}
+
+function examMap_() {
+  const sheet = getOrCreateSheet_(tracker_(), SHEETS.exams, HEADERS.exams);
+  const result = {};
+  rows_(sheet, HEADERS.exams.length).forEach(function (row) {
+    const email = String(row[0] || '').trim().toLowerCase();
+    if (!email) return;
+    result[email] = { date: row[2], venue: row[3], status: row[4], voucher: row[5] };
+  });
+  return result;
+}
+
+function badgeSyncMap_() {
+  const sheet = getOrCreateSheet_(tracker_(), SHEETS.badgeSync, HEADERS.badgeSync);
+  const result = {};
+  rows_(sheet, HEADERS.badgeSync.length).forEach(function (row) {
+    const email = String(row[0] || '').trim().toLowerCase();
+    if (!email) return;
+    result[email] = {
+      profileUrl: row[2] || '', badgeCount: Number(row[3]) || 0, matchedCount: Number(row[4]) || 0,
+      lastSynced: row[5] ? Utilities.formatDate(new Date(row[5]), TZ, 'yyyy-MM-dd HH:mm:ss') : '',
+      lastSyncedValue: row[5] || '', status: row[6] || 'unknown', message: row[7] || ''
+    };
+  });
+  return result;
+}
+
+function earnedBadgesMap_() {
+  const sheet = getOrCreateSheet_(tracker_(), SHEETS.badges, HEADERS.badges);
+  const result = {};
+  rows_(sheet, HEADERS.badges.length).forEach(function (row) {
+    const email = String(row[0] || '').trim().toLowerCase();
+    if (!email) return;
+    if (!result[email]) result[email] = [];
+    result[email].push({
+      id: row[2], name: row[3], url: row[4] || '', imageUrl: row[5] || '', earnedAt: row[6] || '',
+      trackerColumn: row[7] || '', source: 'profile', matched: Boolean(row[7])
+    });
   });
   return result;
 }
@@ -2660,6 +2710,9 @@ function doGet(e) {
     const classConfigById = {};
     classManagement.classes.forEach(function (item) { classConfigById[item.id] = item; });
     const examResultMap = readExamResultsMap_();
+    const examMap = examMap_();
+    const badgeSyncMap = badgeSyncMap_();
+    const earnedBadgesMap = earnedBadgesMap_();
     const today = date_(new Date());
     const logs = readAttendance_('', today);
     const courseCalendar = readCourseCalendar_('', new Date(), 'ALL', e.parameter.month);
@@ -2687,10 +2740,10 @@ function doGet(e) {
         hasNoShow: personLogs.some(function (log) { return /^no show$/i.test(log.attendance); }),
         isAcknowledged: submittedLogs.length > 0 && submittedLogs.every(log => log.acknowledged),
         todaySessions: courseCalendar.todayEvents.filter(function (event) { return classIds.indexOf(event.classId) >= 0; }),
-        exam: readExam_({ name: name, email: email }),
+        exam: examMap[email] || { status: 'Not scheduled' },
         examResults: examResultMap[email] || { latest: {}, history: [] },
-        badges: mergeEarnedBadges_(personProgress.badges || [], readEarnedBadges_(email)),
-        badgeSync: readBadgeSyncStatus_(email)
+        badges: mergeEarnedBadges_(personProgress.badges || [], earnedBadgesMap[email] || []),
+        badgeSync: badgeSyncMap[email] || { status: 'not_synced', message: 'Badge profile has not been synced yet.' }
       });
     });
     Object.keys(progress).forEach(function (key) {
