@@ -1,0 +1,10 @@
+# Deny-everything, then allow-list. This is deliberate: rootDir is the repo
+# root, so without the leading `**/**` clasp would happily push public/*.js and
+# public/*.html into the Apps Script project as script/HTML files.
+#
+# public/ belongs to Firebase Hosting only and must never reach Apps Script.
+**/**
+
+# The only things that sync with Apps Script:
+!appsscript.json
+!*.gs

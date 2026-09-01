@@ -16,17 +16,37 @@
 
 ### 1. Deploy Apps Script
 
-Replace the bound Apps Script project's `Code.gs` with the included `Code.gs`.
+`Code.gs` is pushed from the terminal with [clasp](https://github.com/google/clasp). There are **two separate Apps Script projects**, one per environment:
 
-In Apps Script:
+| Environment | clasp config | Deployment ID (the `AKfycb…` in the `/exec` URL) |
+| --- | --- | --- |
+| Sandbox (default) | `.clasp.json` | `AKfycbx6ICSTL8Uj1uvunwvGxOeoXYEsMQ95wCuA_G43vkWVOsK3A_82NUEuWbeWhWWzhH84` |
+| Production | `.clasp.production.json` | `AKfycbwmfQODe5NJGfq2bzywPFASTa6Ds4RHPSJ28OLSjH5_cmsgNeNhqhtHbv18YxNvjMJFSg` |
+
+A bare `clasp` command targets **sandbox**. Production always requires an explicit `-P` with an absolute path — clasp rejects a relative one.
+
+```sh
+# Sandbox: push code, then update the existing deployment
+clasp push
+clasp deploy -i AKfycbx6ICSTL8Uj1uvunwvGxOeoXYEsMQ95wCuA_G43vkWVOsK3A_82NUEuWbeWhWWzhH84 -d "what changed"
+
+# Production
+clasp -P "$PWD/.clasp.production.json" push
+clasp -P "$PWD/.clasp.production.json" deploy -i AKfycbwmfQODe5NJGfq2bzywPFASTa6Ds4RHPSJ28OLSjH5_cmsgNeNhqhtHbv18YxNvjMJFSg -d "what changed"
+```
+
+> **Always pass `-i`.** A bare `clasp deploy` creates a *new* deployment with a *new* `/exec` URL. The old URL keeps serving the old code and `public/config.js` still points at it, so the live app silently runs stale code. `clasp redeploy <deploymentId>` is an equivalent that cannot omit the ID.
+
+`clasp push` replaces the whole remote project. Run `clasp status` first — it must list only `Code.gs` and `appsscript.json`. Never run `clasp pull` or `clasp clone` in this directory; both overwrite your local `Code.gs`.
+
+One-time setup per Apps Script project, in the browser editor:
 
 1. Set the project time zone to `Asia/Singapore`.
 2. Run `getRosterMap` once and approve Spreadsheet, Drive, Mail, and external-request permissions.
 3. Run `installAttendanceCalendarTrigger` once. It installs the five-minute attendance reminder and automatic no-show worker.
 4. Optional: run `installBadgeSyncTrigger` once for daily Google Skills profile synchronization.
-5. Select **Deploy > Manage deployments > Edit**.
-6. Choose **New version** and deploy as a Web app, executing as the script owner.
-7. Keep the existing `/exec` URL. It already matches `public/config.js`.
+
+Terminal setup: `npm install -g @google/clasp`, then `clasp login`. The Apps Script API must be enabled once at <https://script.google.com/home/usersettings> or every push fails.
 
 ### 2. Deploy Firebase Hosting
 

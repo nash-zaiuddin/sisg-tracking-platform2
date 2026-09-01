@@ -68,3 +68,8 @@ node_modules/
 # dataconnect generated files
 .dataconnect
 .DS_Store
+
+# clasp (Apps Script CLI) credentials — NEVER commit these.
+# .clasp.json itself is safe to commit (it only holds the script ID).
+.clasprc.json
+.clasp.json.bak
