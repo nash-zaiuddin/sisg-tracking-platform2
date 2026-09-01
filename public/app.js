@@ -157,11 +157,6 @@ window.switchTab = function switchTab(tabId) {
   if (title) title.textContent = ({ dashboard: 'Dashboard', calendar: 'Course Calendar', checkin: 'Daily Check-in', projects: 'Group Projects', exams: 'Examinations', feedback: 'Submit Feedback' })[tabId] || 'Dashboard';
 };
 
-window.updateFileName = function updateFileName(input) {
-  const display = document.getElementById('fileNameDisplay');
-  if (display) display.textContent = input.files && input.files[0] ? input.files[0].name : 'Tap to upload MC document';
-};
-
 function dateFromKey(key) {
   const [year, month, day] = String(key || '').split('-').map(Number);
   return year && month && day ? new Date(year, month - 1, day, 12) : null;
@@ -226,7 +221,13 @@ function buildCalendarEventCard(event, compact = false) {
   return card;
 }
 
-window.renderWeeklyLessonCalendar = function renderWeeklyLessonCalendar(calendar = {}) {
+function resourceLinkChip_(resource) {
+  const url = resource.url || resource.fileUrl || resource.openUrl;
+  if (!url) return '';
+  const isFile = !resource.url && resource.fileUrl;
+  return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100"><i data-lucide="${isFile ? 'paperclip' : 'link-2'}" class="h-3 w-3"></i>${(resource.title || 'Resource').replace(/</g,'&lt;')}</a>`;
+}
+window.renderWeeklyLessonCalendar = function renderWeeklyLessonCalendar(calendar = {}, resources = []) {
   const host = document.getElementById('weeklyLessonCalendar');
   const label = document.getElementById('calendarWeekLabel');
   if (!host) return;
@@ -236,6 +237,17 @@ window.renderWeeklyLessonCalendar = function renderWeeklyLessonCalendar(calendar
   const endDate = dateFromKey(weekEnd);
   if (label && startDate && endDate) {
     label.textContent = `${startDate.toLocaleDateString('en-SG', { day:'numeric', month:'short' })} – ${endDate.toLocaleDateString('en-SG', { day:'numeric', month:'short', year:'numeric' })}`;
+  }
+  const generalResources = resources.filter(resource => !resource.courseId);
+  const generalHost = document.getElementById('weeklyLessonGeneralResources');
+  if (generalHost) {
+    if (generalResources.length) {
+      generalHost.classList.remove('hidden');
+      generalHost.innerHTML = `<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">General resources this week</p><div class="mt-2 flex flex-wrap gap-2">${generalResources.map(resourceLinkChip_).join('')}</div>`;
+    } else {
+      generalHost.classList.add('hidden');
+      generalHost.innerHTML = '';
+    }
   }
   host.innerHTML = '';
   for (let offset = 0; offset < 7; offset += 1) {
@@ -263,11 +275,20 @@ window.renderWeeklyLessonCalendar = function renderWeeklyLessonCalendar(calendar
         lesson.children[0].textContent = event.courseStartTime || event.attendanceTime || '';
         lesson.children[1].textContent = event.course || 'Scheduled lesson';
         lesson.children[2].textContent = event.description || 'Lesson contents have not been added yet.';
+        const lessonResources = resources.filter(resource => resource.courseId === event.courseId);
+        if (lessonResources.length) {
+          const resourceWrap = document.createElement('div');
+          resourceWrap.className = 'mt-1.5 flex flex-wrap gap-1.5';
+          resourceWrap.innerHTML = lessonResources.map(resourceLinkChip_).join('');
+          lesson.appendChild(resourceWrap);
+        }
         column.appendChild(lesson);
       });
     }
     host.appendChild(column);
   }
+  lucide.createIcons({ root: host });
+  if (generalHost) lucide.createIcons({ root: generalHost });
 };
 
 window.renderMonthlyDeliveryCalendar = function renderMonthlyDeliveryCalendar(calendar = {}) {
@@ -385,7 +406,7 @@ window.changeStudentClass = async function changeStudentClass(classId) {
   await window.loadStudentData(window.verifiedStudentEmail);
 };
 
-window.renderCourseCalendar = function renderCourseCalendar(calendar = {}) {
+window.renderCourseCalendar = function renderCourseCalendar(calendar = {}, resources = []) {
   window.courseCalendarEvents = Array.isArray(calendar.events) ? calendar.events : [];
   window.courseCalendarWeekEvents = Array.isArray(calendar.weekEvents) ? calendar.weekEvents : [];
   window.courseCalendarToday = calendar.today || new Date().toISOString().slice(0, 10);
@@ -396,7 +417,7 @@ window.renderCourseCalendar = function renderCourseCalendar(calendar = {}) {
     summary.textContent = `${values.sessionDays || 0} session days · ${values.virtual || 0} virtual · ${values.faceToFace || 0} face to face`;
   }
   window.renderAttendanceSignal(calendar);
-  window.renderWeeklyLessonCalendar(calendar);
+  window.renderWeeklyLessonCalendar(calendar, resources);
   window.renderMonthlyDeliveryCalendar(calendar);
 };
 
@@ -567,66 +588,6 @@ window.renderPortalLinks = function renderPortalLinks(links = {}) {
   });
 };
 
-window.renderWeeklyResources = function renderWeeklyResources(resources = [], calendar = {}) {
-  const targets = ['dashboardWeeklyResources', 'calendarWeeklyResources'];
-  targets.forEach(id => {
-    const list = document.getElementById(id);
-    if (!list) return;
-    list.innerHTML = '';
-    if (!resources.length) {
-      const empty = document.createElement('p');
-      empty.className = 'rounded-xl bg-slate-50 p-4 text-sm text-slate-500';
-      empty.textContent = 'No resources have been published for the current week.';
-      list.appendChild(empty);
-      return;
-    }
-    resources.forEach(resource => {
-      const course = (calendar.events || []).find(event => event.courseId === resource.courseId);
-      const card = document.createElement('article');
-      card.className = 'flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-300 hover:bg-blue-50/50';
-      card.innerHTML = '<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700"><i data-lucide="link-2" class="h-5 w-5"></i></div>';
-      const copy = document.createElement('div');
-      copy.className = 'min-w-0 flex-1';
-      const title = document.createElement('p');
-      title.className = 'text-sm font-semibold text-slate-900';
-      title.textContent = resource.title;
-      const meta = document.createElement('p');
-      meta.className = 'mt-1 text-xs text-slate-500';
-      meta.textContent = resource.description || (course ? course.course : resource.courseId || 'General resource');
-      const actions = document.createElement('div');
-      actions.className = 'mt-3 flex flex-wrap gap-2';
-      const addAction = (url, label, iconName, className) => {
-        if (!url) return;
-        const action = document.createElement('a');
-        action.href = url;
-        action.target = '_blank';
-        action.rel = 'noopener noreferrer';
-        action.className = className;
-        action.innerHTML = `<i data-lucide="${iconName}" class="h-3.5 w-3.5"></i><span></span>`;
-        action.querySelector('span').textContent = label;
-        actions.appendChild(action);
-      };
-      const actionClass = 'inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700';
-      const fileClass = 'inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700';
-      addAction(resource.url, 'Open link', 'external-link', actionClass);
-      addAction(resource.fileUrl, 'Open file', 'paperclip', fileClass);
-      if (!resource.url && !resource.fileUrl) {
-        addAction(resource.openUrl, 'Open resource', 'external-link', actionClass);
-      }
-      if (resource.fileName) {
-        const fileName = document.createElement('p');
-        fileName.className = 'mt-2 truncate text-[11px] text-slate-400';
-        fileName.textContent = resource.fileName;
-        copy.append(title, meta, actions, fileName);
-      } else {
-        copy.append(title, meta, actions);
-      }
-      card.appendChild(copy);
-      list.appendChild(card);
-    });
-    lucide.createIcons({ root: list });
-  });
-};
 
 function projectEscapeHtml(value) {
   return String(value == null ? '' : value).replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
@@ -638,13 +599,16 @@ function projectLink(label, url) {
   return `<a href="${projectEscapeHtml(safeUrl)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100">${projectEscapeHtml(label)} <span aria-hidden="true">↗</span></a>`;
 }
 
+// NOTE: Peer evaluation is intentionally not rendered in the student portal.
+// The backend (submit_peer_evaluation) and the instructor's Groups & Projects
+// view are untouched, so any evaluations submitted in the past still display
+// to instructors — this only removes the student-facing entry point.
 window.renderProjectWorkspace = function renderProjectWorkspace(workspace = {}) {
   window.studentProjectWorkspace = workspace || {};
   const host = document.getElementById('projectWorkspace');
   if (!host) return;
   const group = workspace.group;
   const members = Array.isArray(workspace.members) ? workspace.members : [];
-  const peers = Array.isArray(workspace.peers) ? workspace.peers : [];
   const assignments = Array.isArray(workspace.assignments) ? workspace.assignments : [];
   host.innerHTML = '';
   if (!group) {
@@ -669,7 +633,6 @@ window.renderProjectWorkspace = function renderProjectWorkspace(workspace = {}) 
   assignments.forEach(assignment => {
     const project = assignment.project || {};
     const latest = assignment.latestSubmission || null;
-    const evaluated = Array.isArray(assignment.evaluatedPeerEmails) ? assignment.evaluatedPeerEmails : [];
     const card = document.createElement('article');
     card.className = 'rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7';
     card.dataset.projectAssignment = assignment.assignmentId || '';
@@ -685,9 +648,18 @@ window.renderProjectWorkspace = function renderProjectWorkspace(workspace = {}) 
         <div class="rounded-2xl bg-slate-50 p-4"><h4 class="text-sm font-bold text-slate-800">Group assignment</h4><p class="mt-2 text-sm leading-6 text-slate-600">${projectEscapeHtml(assignment.useCase || 'No group-specific use case has been added.')}</p>${assignment.trialAccount ? `<p class="mt-3 text-xs text-slate-500"><b>Trial account:</b> ${projectEscapeHtml(assignment.trialAccount)}</p>` : ''}<div class="mt-3 flex flex-wrap gap-2">${detailLinks}</div></div>
         <div class="rounded-2xl bg-slate-50 p-4"><h4 class="text-sm font-bold text-slate-800">Delivery requirements</h4>${requirementText.length ? `<ul class="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">${requirementText.map(line => `<li>${projectEscapeHtml(line)}</li>`).join('')}</ul>` : '<p class="mt-2 text-sm text-slate-500">No requirements have been entered.</p>'}<div class="mt-3 flex flex-wrap gap-2 text-xs"><span class="rounded-lg bg-white px-2.5 py-1.5 text-slate-600">Min. features: ${Number(project.minimumWorkingFeatures || 0)}</span><span class="rounded-lg bg-white px-2.5 py-1.5 text-slate-600">Presentation: ${Number(project.presentationMinutes || 0)} min</span><span class="rounded-lg bg-white px-2.5 py-1.5 text-slate-600">Q&amp;A: ${Number(project.qaMinutes || 0)} min</span>${project.creditLimit ? `<span class="rounded-lg bg-white px-2.5 py-1.5 text-slate-600">Credit ceiling: US$${Number(project.creditLimit)}</span>` : ''}</div></div>
       </div>
-      <div class="mt-6 grid gap-6 xl:grid-cols-2">
-        <div class="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4"><h4 class="font-bold text-slate-900">Group submission</h4><p class="mt-1 text-xs leading-5 text-slate-500">Any member can submit. New submissions remain in the group history.</p>${latest ? `<div class="mt-3 rounded-xl bg-white p-3"><p class="text-xs font-semibold text-emerald-700">Latest submission · ${projectEscapeHtml(latest.status || 'Submitted')}</p><div class="mt-2 flex flex-wrap gap-2">${latestLinks}</div>${latest.notes ? `<p class="mt-2 text-xs text-slate-500">${projectEscapeHtml(latest.notes)}</p>` : ''}</div>` : ''}<div class="mt-4 grid gap-3"><input data-field="submissionUrl" type="url" placeholder="Main submission / workbook URL" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><input data-field="deckUrl" type="url" placeholder="Presentation deck URL" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><input data-field="demoUrl" type="url" placeholder="POC / demo URL" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><input data-field="repositoryUrl" type="url" placeholder="Repository URL" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><textarea data-field="submissionNotes" rows="3" placeholder="Submission notes" class="w-full resize-none rounded-xl border border-slate-200 bg-white p-3 text-sm"></textarea><button type="button" onclick="submitProjectSubmission(this)" class="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700"><i data-lucide="upload-cloud" class="h-4 w-4"></i>Submit for group</button></div></div>
-        <div class="rounded-2xl border border-violet-100 bg-violet-50/50 p-4"><h4 class="font-bold text-slate-900">Peer evaluation</h4><p class="mt-1 text-xs leading-5 text-slate-500">Only members of ${projectEscapeHtml(group.name)} appear here. Your rating is saved per teammate and can be updated.</p>${project.peerEvaluationEnabled === false ? '<p class="mt-4 rounded-xl bg-white p-3 text-sm text-slate-500">Peer evaluation is disabled for this project.</p>' : !peers.length ? '<p class="mt-4 rounded-xl bg-white p-3 text-sm text-slate-500">There are no other active members to evaluate.</p>' : `<div class="mt-4 grid gap-3"><select data-field="evaluateeEmail" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="">Choose teammate</option>${peers.map(peer => `<option value="${projectEscapeHtml(peer.email)}">${projectEscapeHtml(peer.name || peer.email)}${evaluated.includes(peer.email) ? ' · submitted' : ''}</option>`).join('')}</select><div class="grid grid-cols-2 gap-2 sm:grid-cols-5">${[['contribution','Contribution'],['collaboration','Collaboration'],['communication','Communication'],['reliability','Reliability'],['technicalContribution','Technical']].map(([field,label]) => `<label class="text-[11px] font-semibold text-slate-600">${label}<select data-field="${field}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-sm"><option value="5">5</option><option value="4">4</option><option value="3" selected>3</option><option value="2">2</option><option value="1">1</option></select></label>`).join('')}</div><textarea data-field="peerComments" rows="3" placeholder="Comments (required for any rating of 1 or 2)" class="w-full resize-none rounded-xl border border-slate-200 bg-white p-3 text-sm"></textarea><button type="button" onclick="submitPeerEvaluation(this)" class="flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-700"><i data-lucide="user-check" class="h-4 w-4"></i>Save peer evaluation</button></div>`}</div>
+      <div class="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
+        <h4 class="font-bold text-slate-900">Group submission</h4>
+        <p class="mt-1 text-xs leading-5 text-slate-500">Any member can submit. New submissions remain in the group history.</p>
+        ${latest ? `<div class="mt-3 rounded-xl bg-white p-3"><p class="text-xs font-semibold text-emerald-700">Latest submission · ${projectEscapeHtml(latest.status || 'Submitted')}</p><div class="mt-2 flex flex-wrap gap-2">${latestLinks}</div>${latest.notes ? `<p class="mt-2 text-xs text-slate-500">${projectEscapeHtml(latest.notes)}</p>` : ''}</div>` : ''}
+        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+          <input data-field="submissionUrl" type="url" placeholder="Main submission / workbook URL" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm">
+          <input data-field="deckUrl" type="url" placeholder="Presentation deck URL" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm">
+          <input data-field="demoUrl" type="url" placeholder="POC / demo URL" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm">
+          <input data-field="repositoryUrl" type="url" placeholder="Repository URL" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm">
+        </div>
+        <textarea data-field="submissionNotes" rows="3" placeholder="Submission notes" class="mt-3 w-full resize-none rounded-xl border border-slate-200 bg-white p-3 text-sm"></textarea>
+        <button type="button" onclick="submitProjectSubmission(this)" class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 sm:w-auto sm:px-8"><i data-lucide="upload-cloud" class="h-4 w-4"></i>Submit for group</button>
       </div>`;
     list.appendChild(card);
   });
@@ -707,22 +679,6 @@ window.submitProjectSubmission = async function submitProjectSubmission(button) 
     const result = await apiPost('submit_project_submission', payload);
     window.renderProjectWorkspace(result.data || {});
     window.showToast(result.message || 'Group project submitted.', 'success');
-  } catch (error) { window.showToast(error.message, 'error'); }
-  finally { window.setButtonLoading(button, false); window.hideLoading(); }
-};
-
-window.submitPeerEvaluation = async function submitPeerEvaluation(button) {
-  const card = button && button.closest('[data-project-assignment]');
-  if (!card) return;
-  const value = field => (card.querySelector(`[data-field="${field}"]`) || {}).value || '';
-  const payload = { assignmentId:card.dataset.projectAssignment, evaluateeEmail:value('evaluateeEmail'), contribution:Number(value('contribution')), collaboration:Number(value('collaboration')), communication:Number(value('communication')), reliability:Number(value('reliability')), technicalContribution:Number(value('technicalContribution')), comments:value('peerComments').trim() };
-  if (!payload.evaluateeEmail) return window.showToast('Choose a teammate to evaluate.', 'error');
-  window.setButtonLoading(button, true);
-  window.showLoading('Saving your peer evaluation…');
-  try {
-    const result = await apiPost('submit_peer_evaluation', payload);
-    window.renderProjectWorkspace(result.data || {});
-    window.showToast(result.message || 'Peer evaluation saved.', 'success');
   } catch (error) { window.showToast(error.message, 'error'); }
   finally { window.setButtonLoading(button, false); window.hideLoading(); }
 };
@@ -747,6 +703,67 @@ window.renderExamResults = function renderExamResults(examResults = {}) {
     row.querySelector('span').textContent = `${item.score}/${item.maxScore || 100}`;
     history.appendChild(row);
   });
+};
+
+// Applies a `progress` object (as returned by get_student, submit_exam_result,
+// sync_badges, and save_profile) to the dashboard summary cards and the badge
+// requirements panel, without needing a full loadStudentData() round trip.
+window.applyProgressSummary = function applyProgressSummary(progress = {}) {
+  const set = (id, value) => {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value;
+  };
+  set('badgeProgress', `${progress.progress == null ? 0 : progress.progress}%`);
+  set('badgeCount', progress.scheduleEnabled
+    ? `${progress.completedCount || 0}/${progress.totalCount || 0} due badges earned`
+    : `${progress.completedCount || 0}/${progress.totalCount || 0} earned`);
+  if (progress.pcaScore !== undefined) set('pcaScore', progress.pcaScore || '—');
+  if (progress.mock1Score !== undefined) set('mock1Score', progress.mock1Score || '—');
+  if (progress.mock2Score !== undefined) set('mock2Score', progress.mock2Score || '—');
+  window.renderBadgeRequirements(progress);
+};
+
+// The real PCA exam (as opposed to PCA Sample Questions, which is a score
+// under Badge progress) has exactly 4 states. This keeps the dashboard card,
+// the Examinations tab form, and the pca-status color coding all in sync
+// from a single `exam` object, whether it comes from a page load or a save.
+const PCA_EXAM_STATUS_STYLES = {
+  Pass: 'text-green-700',
+  Fail: 'text-red-700',
+  Scheduled: 'text-purple-700',
+  Unscheduled: 'text-slate-500'
+};
+
+function formatExamDateDisplay(value) {
+  const raw = String(value || '').slice(0, 10);
+  if (!raw) return '';
+  const date = new Date(`${raw}T12:00:00`);
+  return !Number.isNaN(date.getTime())
+    ? date.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '';
+}
+
+window.applyExamStatus = function applyExamStatus(exam = {}) {
+  const status = exam.status || 'Unscheduled';
+  const statusElement = document.getElementById('examStatus');
+  if (statusElement) {
+    statusElement.textContent = status;
+    statusElement.className = `mt-2 text-xl font-bold ${PCA_EXAM_STATUS_STYLES[status] || 'text-slate-500'}`;
+  }
+  const detailElement = document.getElementById('examStatusDetail');
+  if (detailElement) {
+    const parts = [];
+    const dateLabel = formatExamDateDisplay(exam.date);
+    if (dateLabel) parts.push(dateLabel);
+    if (exam.venue) parts.push(exam.venue);
+    detailElement.textContent = parts.length ? parts.join(' · ') : 'No exam date scheduled yet';
+  }
+  const statusSelect = document.getElementById('pcaExamStatus');
+  if (statusSelect) statusSelect.value = status;
+  const dateInput = document.getElementById('examDate');
+  if (dateInput) dateInput.value = String(exam.date || '').slice(0, 10);
+  const venueInput = document.getElementById('examVenue');
+  if (venueInput) venueInput.value = exam.venue || '';
 };
 
 async function apiPost(action, extra = {}) {
@@ -790,26 +807,14 @@ window.loadStudentData = async function loadStudentData(email) {
     const data = result.data;
     const progress = data.progress || {};
     window.renderStudentClassSelector(data.classes || [], data.selectedClass || {});
-    const set = (id, value) => {
-      const element = document.getElementById(id);
-      if (element) element.textContent = value;
-    };
     const skills = document.getElementById('skillsUrl');
     if (skills && data.profileUrl) skills.value = data.profileUrl;
-    set('badgeProgress', `${progress.progress == null ? 0 : progress.progress}%`);
-    set('badgeCount', progress.scheduleEnabled
-      ? `${progress.completedCount || 0}/${progress.totalCount || 0} due badges earned`
-      : `${progress.completedCount || 0}/${progress.totalCount || 0} earned`);
-    set('examStatus', data.exam && data.exam.status || 'Not scheduled');
-    set('pcaScore', `Score: ${progress.pcaScore || '—'}`);
-    set('mock1Score', progress.mock1Score || '—');
-    set('mock2Score', progress.mock2Score || '—');
-    window.renderCourseCalendar(data.calendar || {});
-    window.renderWeeklyResources(data.weeklyResources || [], data.calendar || {});
+    window.applyProgressSummary(progress);
+    window.applyExamStatus(data.exam || {});
+    window.renderCourseCalendar(data.calendar || {}, data.weeklyResources || []);
     window.renderPortalLinks(data.portalLinks || {});
     window.renderExamResults(data.examResults || {});
     window.renderProjectWorkspace(data.projects || {});
-    window.renderBadgeRequirements(progress);
     window.renderEarnedBadges(data.badges || progress.badges || [], data.badgeSync || {});
   } catch (error) {
     console.warn(error);
@@ -837,12 +842,13 @@ window.submitExamResult = async function submitExamResult() {
   window.showLoading('Submitting your exam result…');
   try {
     const result = await apiPost('submit_exam_result', { examType, score, resultUrl, notes });
-    window.renderExamResults(result.data || {});
+    const data = result.data || {};
+    window.renderExamResults(data.examResults || {});
+    if (data.progress) window.applyProgressSummary(data.progress);
     window.showToast(result.message || 'Exam result submitted.', 'success');
     document.getElementById('examResultScore').value = '';
     document.getElementById('examResultUrl').value = '';
     document.getElementById('examResultNotes').value = '';
-    await window.loadStudentData(window.verifiedStudentEmail);
   } catch (error) {
     window.showToast(error.message, 'error');
   } finally {
@@ -858,8 +864,35 @@ window.syncBadges = async function syncBadges() {
   window.showLoading('Syncing your badges…');
   try {
     const result = await apiPost('sync_badges');
-    window.renderEarnedBadges(result.data && result.data.badges || [], result.data && result.data.badgeSync || {});
+    const data = result.data || {};
+    window.renderEarnedBadges(data.badges || [], data.badgeSync || {});
+    if (data.progress) window.applyProgressSummary(data.progress);
     window.showToast(result.message || 'Badges synced.', 'success');
+  } catch (error) {
+    console.error(error);
+    window.showToast(error.message, 'error');
+  } finally {
+    window.setButtonLoading(button, false);
+    window.hideLoading();
+  }
+};
+
+window.submitAttendance = async function submitAttendance() {
+  if (!window.verifiedStudentName) return window.showToast('Please sign in first.', 'error');
+  const button = document.getElementById('submitBtn');
+  const checkpoint = document.getElementById('attendanceSession');
+  const selectedOption = checkpoint.options[checkpoint.selectedIndex];
+  const courseId = checkpoint.value;
+  const session = selectedOption && selectedOption.dataset.session || '';
+  const comment = document.getElementById('attendanceComment').value.trim();
+  if (!courseId) return window.showToast('No attendance checkpoint is available right now.', 'error');
+  window.setButtonLoading(button, true);
+  window.showLoading('Submitting your attendance…');
+  try {
+    const payload = { courseId, session, comment, isMC: false };
+    const result = await apiPost('student_checkin', payload);
+    window.showToast(result.message || 'Check-in recorded.', 'success');
+    document.getElementById('attendanceComment').value = '';
     await window.loadStudentData(window.verifiedStudentEmail);
   } catch (error) {
     console.error(error);
@@ -870,36 +903,22 @@ window.syncBadges = async function syncBadges() {
   }
 };
 
-function fileAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(',')[1]);
-    reader.onerror = () => reject(new Error('The selected file could not be read.'));
-    reader.readAsDataURL(file);
-  });
-}
-
-window.submitAttendance = async function submitAttendance() {
+window.submitMC = async function submitMC() {
   if (!window.verifiedStudentName) return window.showToast('Please sign in first.', 'error');
-  const button = document.getElementById('submitBtn');
-  const file = document.getElementById('mcFile').files[0];
+  const button = document.getElementById('mcBtn');
   const checkpoint = document.getElementById('attendanceSession');
   const selectedOption = checkpoint.options[checkpoint.selectedIndex];
   const courseId = checkpoint.value;
   const session = selectedOption && selectedOption.dataset.session || '';
   const comment = document.getElementById('attendanceComment').value.trim();
   if (!courseId) return window.showToast('No attendance checkpoint is available right now.', 'error');
-  if (file && file.size > 5 * 1024 * 1024) return window.showToast('MC attachment must be 5 MB or smaller.', 'error');
   window.setButtonLoading(button, true);
-  window.showLoading(file ? 'Uploading your attendance record…' : 'Submitting your attendance…');
+  window.showLoading('Submitting your MC check-in…');
   try {
-    const payload = { courseId, session, comment, isMC: Boolean(file) };
-    if (file) Object.assign(payload, { fileName: file.name, mimeType: file.type, fileData: await fileAsBase64(file) });
+    const payload = { courseId, session, comment, isMC: true };
     const result = await apiPost('student_checkin', payload);
-    window.showToast(result.message || 'Check-in recorded.', 'success');
+    window.showToast(result.message || 'MC check-in recorded.', 'success');
     document.getElementById('attendanceComment').value = '';
-    document.getElementById('mcFile').value = '';
-    window.updateFileName(document.getElementById('mcFile'));
     await window.loadStudentData(window.verifiedStudentEmail);
   } catch (error) {
     console.error(error);
@@ -916,9 +935,12 @@ window.submitForm = async function submitForm(action) {
   const payload = {};
   if (action === 'register_pca_exam') {
     button = document.getElementById('pcaBtn');
+    payload.examStatus = document.getElementById('pcaExamStatus').value;
     payload.examDate = document.getElementById('examDate').value;
     payload.examVenue = document.getElementById('examVenue').value.trim();
-    if (!payload.examDate || !payload.examVenue) return window.showToast('Enter the exam date and venue.', 'error');
+    if (payload.examStatus !== 'Unscheduled' && (!payload.examDate || !payload.examVenue)) {
+      return window.showToast('Enter the exam date and venue, or set the status to Unscheduled.', 'error');
+    }
   } else if (action === 'submit_feedback') {
     button = document.getElementById('feedbackBtn');
     payload.feedbackType = document.getElementById('feedbackType').value;
@@ -931,7 +953,7 @@ window.submitForm = async function submitForm(action) {
   }
   window.setButtonLoading(button, true);
   const loadingMessages = {
-    register_pca_exam: 'Saving your exam registration…',
+    register_pca_exam: 'Saving your exam status…',
     submit_feedback: 'Submitting your feedback…',
     save_profile: 'Saving and syncing your profile…'
   };
@@ -940,9 +962,12 @@ window.submitForm = async function submitForm(action) {
     const result = await apiPost(action, payload);
     window.showToast(result.message || 'Saved.', 'success');
     if (action === 'submit_feedback') document.getElementById('feedbackText').value = '';
-    if (action === 'save_profile') {
-      if (result.data) window.renderEarnedBadges(result.data.badges || [], result.data.badgeSync || {});
-      await window.loadStudentData(window.verifiedStudentEmail);
+    if (action === 'register_pca_exam' && result.data) {
+      window.applyExamStatus(result.data);
+    }
+    if (action === 'save_profile' && result.data) {
+      window.renderEarnedBadges(result.data.badges || [], result.data.badgeSync || {});
+      if (result.data.progress) window.applyProgressSummary(result.data.progress);
     }
   } catch (error) {
     console.error(error);

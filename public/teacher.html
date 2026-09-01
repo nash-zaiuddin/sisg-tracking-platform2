@@ -4,144 +4,201 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SISG Instructor Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
       color-scheme: light;
-      --blue:#1a73e8; --blue-dark:#1557b0; --ink:#202124; --muted:#5f6368;
-      --line:#e2e7ee; --surface:#fff; --canvas:#f5f7fb; --green:#188038;
-      --red:#d93025; --orange:#e8710a; --purple:#7e57c2;
+      --blue: #2563eb; 
+      --blue-dark: #1d4ed8; 
+      --ink: #0f172a; 
+      --muted: #64748b;
+      --line: #e2e8f0; 
+      --surface: #ffffff; 
+      --canvas: #f1f5f9; 
+      --green: #16a34a;
+      --red: #dc2626; 
+      --orange: #f59e0b; 
+      --purple: #9333ea;
     }
-    * { box-sizing:border-box; }
-    body { margin:0; background:var(--canvas); color:var(--ink); font-family:Inter,"Segoe UI",Arial,sans-serif; }
-    button,input,select,textarea { font:inherit; }
-    button:disabled { cursor:not-allowed; opacity:.55; }
-    .container { width:min(1520px,100%); margin:0 auto; padding:26px; }
-    .topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
-    h1 { margin:0 0 5px; color:var(--blue); font-size:30px; }
-    h2,h3 { margin:0; }
-    .muted { color:var(--muted); }
-    .panel,.toolbar,.card { border:1px solid var(--line); background:var(--surface); box-shadow:0 3px 14px rgba(32,33,36,.05); }
-    .toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:20px 0 14px; padding:14px; border-radius:14px; }
-    .toolbar .search { flex:1 1 260px; }
-    .toolbar .class-filter { flex:0 1 270px; }
-    .panel { padding:20px; border-radius:14px; }
-    .card { padding:17px; border-radius:12px; border-top:4px solid var(--blue); }
-    .btn { border:0; border-radius:8px; padding:10px 14px; background:var(--blue); color:white; cursor:pointer; font-weight:750; }
-    .btn:hover { filter:brightness(.95); }
-    .btn.secondary { background:#eaf2fd; color:var(--blue-dark); }
-    .btn.green { background:var(--green); }
-    .btn.orange { background:var(--orange); }
-    .btn.danger { background:var(--red); }
-    .btn.small { padding:7px 10px; font-size:12px; }
-    .tabs { display:flex; gap:5px; overflow-x:auto; margin:0 0 18px; padding:5px; border-radius:12px; background:#e9eff7; }
-    .tab { white-space:nowrap; border:0; border-radius:8px; padding:10px 14px; background:transparent; color:#52606d; cursor:pointer; font-weight:750; }
-    .tab.active { background:white; color:var(--blue-dark); box-shadow:0 1px 5px rgba(32,33,36,.12); }
-    .view { display:none; }
-    .view.active { display:block; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:16px; }
-    .split { display:grid; grid-template-columns:minmax(320px,.78fr) minmax(460px,1.22fr); gap:18px; }
-    .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:13px; margin-top:17px; }
-    .field label { display:block; margin-bottom:6px; color:#4b5563; font-size:12px; font-weight:800; }
-    .full { grid-column:1/-1; }
-    input[type="text"],input[type="url"],input[type="date"],input[type="time"],input[type="number"],select,textarea {
-      width:100%; padding:10px 11px; border:1px solid #cdd4de; border-radius:8px; background:white; color:var(--ink);
+    
+    html, body {
+      max-width: 100vw;
+      overflow-x: hidden;
+      font-family: 'Inter', sans-serif;
+      background: var(--canvas);
+      color: var(--ink);
     }
-    textarea { resize:vertical; }
-    .check { display:flex; align-items:center; gap:7px; font-size:13px; font-weight:700; }
-    .check input { width:18px; height:18px; }
-    .toggle-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; padding:12px; border-radius:10px; background:#f7f9fc; }
-    .badge { display:inline-flex; align-items:center; gap:4px; margin:4px 3px 0 0; padding:4px 8px; border-radius:999px; font-size:11px; font-weight:750; }
-    .badge.neutral { background:#edf0f2; color:#52606d; }
-    .badge.ok { background:#dff3e4; color:#137333; }
-    .badge.wait { background:#fff3cd; color:#8a5b00; }
-    .badge.bad { background:#fce8e6; color:#b3261e; }
-    .badge.virtual { background:#f0e8ff; color:#6741a5; }
-    .badge.face { background:#e5f0ff; color:#1557b0; }
-    .progress { height:11px; overflow:hidden; border-radius:999px; background:#e8eaed; }
-    .progress > span { display:block; height:100%; background:#34a853; }
-    .progress-copy { display:flex; justify-content:space-between; gap:8px; margin-top:5px; color:var(--muted); font-size:12px; }
-    .attendance-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; padding:10px; border-radius:9px; background:#f8fafc; }
-    .summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:16px 0; }
-    .summary-card { padding:15px; border:1px solid var(--line); border-radius:11px; background:#fff; }
-    .summary-card p { margin:0; }
-    .summary-card strong { display:block; margin-top:6px; font-size:26px; }
-    .scroll { overflow:auto; max-height:62vh; margin-top:15px; border:1px solid var(--line); border-radius:10px; background:white; }
-    .scroll.compact { max-height:56vh; }
-    table { width:100%; border-collapse:separate; border-spacing:0; min-width:max-content; font-size:12px; }
-    th,td { padding:8px 9px; border-right:1px solid #edf0f2; border-bottom:1px solid #edf0f2; text-align:center; }
-    th { position:sticky; top:0; z-index:3; background:#eef3f9; color:#44546a; }
-    th:first-child,td:first-child { position:sticky; left:0; z-index:2; min-width:190px; background:white; text-align:left; }
-    th:first-child { z-index:4; background:#e4ecf7; }
-    .badge-column { width:74px; min-width:74px; max-width:74px; }
-    .badge-column .cut { display:block; max-width:62px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .matrix-ok { background:#eef8f0; color:#137333; font-weight:850; }
-    .matrix-miss { background:#fff2f1; color:#b3261e; font-weight:850; }
-    .matrix-future { background:#fffaf0; color:#8a5b00; }
-    .list { display:grid; gap:10px; margin-top:15px; }
-    .list-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:13px; border:1px solid var(--line); border-radius:10px; background:#fff; }
-    .actions { display:flex; flex-wrap:wrap; gap:7px; justify-content:flex-end; }
-    .class-card { cursor:pointer; }
-    .class-card.selected { border-color:#8ab4f8; box-shadow:0 0 0 3px #e8f0fe; }
-    .member-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:8px; margin-top:14px; max-height:300px; overflow:auto; }
-    .member { display:flex; gap:8px; align-items:flex-start; padding:9px; border:1px solid var(--line); border-radius:8px; }
-    .member input { margin-top:2px; }
-    .badge-requirement-grid { display:grid; gap:8px; margin-top:12px; max-height:440px; overflow:auto; padding-right:3px; }
-    .badge-requirement { display:grid; grid-template-columns:auto minmax(0,1fr) 150px auto; gap:10px; align-items:center; padding:10px; border:1px solid var(--line); border-radius:9px; background:#fff; }
-    .badge-requirement input[type="checkbox"] { width:18px; height:18px; }
-    .badge-requirement .requirement-name { overflow:hidden; text-overflow:ellipsis; font-size:13px; font-weight:750; }
-    .badge-requirement .requirement-meta { margin-top:3px; color:var(--muted); font-size:11px; }
-    .badge-requirement .due-override label { display:block; margin-bottom:4px; color:var(--muted); font-size:10px; font-weight:800; }
-    .badge-requirement .due-override input { padding:7px 8px; font-size:12px; }
-    .project-admin-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(310px,1fr)); gap:16px; margin-top:16px; }
-    .project-assignment-row { display:grid; grid-template-columns:minmax(190px,1fr) minmax(170px,.75fr) minmax(130px,.55fr); gap:10px; align-items:center; padding:10px; border:1px solid var(--line); border-radius:9px; background:white; }
-    .project-assignment-row strong { display:block; font-size:13px; }
-    .project-assignment-row small { display:block; margin-top:2px; color:var(--muted); }
-    .project-stat-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:10px; }
-    .project-stat { padding:9px; border-radius:8px; background:#f7f9fc; text-align:center; font-size:11px; color:var(--muted); }
-    .project-stat b { display:block; margin-bottom:2px; color:var(--ink); font-size:17px; }
-    .calendar-header { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-top:14px; color:#6b7280; text-align:center; font-size:10px; font-weight:800; text-transform:uppercase; }
-    .calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-top:6px; }
-    .calendar-day { min-height:92px; padding:7px; border:1px solid var(--line); border-radius:8px; background:#fff; }
-    .calendar-day.outside { opacity:.4; background:#f5f6f8; }
-    .calendar-day.today { border-color:#4f8de8; background:#eef6ff; }
-    .calendar-pill { display:block; overflow:hidden; margin-top:4px; padding:3px 5px; border-radius:5px; text-overflow:ellipsis; white-space:nowrap; font-size:9px; font-weight:750; cursor:pointer; }
-    .calendar-pill.virtual { background:#f0e8ff; color:#6741a5; }
-    .calendar-pill.face { background:#e5f0ff; color:#1557b0; }
-    .empty { padding:20px; border-radius:10px; background:#f7f9fb; color:var(--muted); text-align:center; }
-    #loadingStatus { padding:30px; text-align:center; font-size:17px; }
-    .loading-overlay { position:fixed; inset:0; z-index:100; display:grid; place-items:center; padding:24px; background:rgba(245,247,251,.9); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); opacity:0; visibility:hidden; pointer-events:none; transition:opacity .16s ease,visibility .16s ease; }
-    .loading-overlay.visible { opacity:1; visibility:visible; pointer-events:auto; }
-    .loading-card { width:min(330px,100%); padding:28px 24px; border:1px solid #dbe4f0; border-radius:20px; background:#fff; box-shadow:0 20px 50px rgba(32,33,36,.16); text-align:center; }
-    .loading-spinner { width:44px; height:44px; margin:0 auto 16px; border:4px solid #dbeafe; border-top-color:var(--blue); border-radius:999px; animation:loading-spin .75s linear infinite; }
-    .loading-message { margin:0; color:var(--ink); font-size:17px; font-weight:800; }
-    .loading-hint { margin:7px 0 0; color:var(--muted); font-size:13px; }
-    @keyframes loading-spin { to { transform:rotate(360deg); } }
-    @media (prefers-reduced-motion:reduce) { .loading-overlay{transition:none}.loading-spinner{animation-duration:1.5s} }
-    @media (max-width:1000px) {
-      .container { padding:16px; } .split { grid-template-columns:1fr; }
-      .summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    
+    * { box-sizing: border-box; min-width: 0; }
+    
+    button, input, select, textarea { font: inherit; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    
+    .view { display: none; animation: fadeIn .25s ease-out; }
+    .view.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .nav-btn { color: #64748b; }
+    .nav-btn:hover { color: #1e293b; background: #f8fafc; }
+    .nav-btn.active { color: #1d4ed8; background: #eff6ff; box-shadow: inset 3px 0 0 #2563eb; }
+
+    /* Student Portal Style Headers */
+    .panel-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
+    .panel-header .icon-box { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 14px; }
+    .panel-header .icon-box svg { width: 24px; height: 24px; }
+    .panel-header h2 { font-size: 20px; font-weight: 700; color: #0f172a; margin: 0; letter-spacing: -0.02em; line-height: 1.2; }
+    .panel-header p { font-size: 14px; color: #64748b; margin: 4px 0 0 0; line-height: 1.5; }
+
+    .icon-blue { background: #dbeafe; color: #1d4ed8; }
+    .icon-amber { background: #fef3c7; color: #b45309; }
+    .icon-green { background: #dcfce7; color: #15803d; }
+    .icon-purple { background: #f3e8ff; color: #7e22ce; }
+    .icon-orange { background: #ffedd5; color: #c2410c; }
+    .icon-red { background: #fee2e2; color: #b91c1c; }
+    .icon-slate { background: #f1f5f9; color: #334155; }
+    .icon-indigo { background: #e0e7ff; color: #4338ca; }
+
+    /* Stacked Name & Email formatting */
+    .user-info { display: flex; flex-direction: column; justify-content: center; flex: 1 1 auto; min-width: 0; }
+    .user-info strong { display: block; font-size: 14px; font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+    .user-info small { display: block; font-size: 13px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+
+    .panel { padding: 28px; border-radius: 24px; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1); }
+    .card { padding: 20px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 24px; padding: 16px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); width: 100%; }
+    .toolbar .search { flex: 1 1 200px; min-width: 150px; }
+    .toolbar .class-filter { flex: 0 1 200px; min-width: 150px; }
+    .toolbar .btn { flex: 0 0 auto; white-space: nowrap; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 12px; padding: 10px 16px; background: var(--blue); color: white; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.2s ease; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+    .btn:hover { background: var(--blue-dark); }
+    .btn.secondary { background: #f8fafc; color: #334155; border: 1px solid #e2e8f0; box-shadow: none; }
+    .btn.secondary:hover { background: #f1f5f9; color: #0f172a; }
+    .btn.green { background: var(--green); } .btn.green:hover { background: #15803d; }
+    .btn.orange { background: var(--orange); } .btn.orange:hover { background: #b45309; }
+    .btn.danger { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; box-shadow: none; }
+    .btn.danger:hover { background: #fee2e2; }
+    .btn.small { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+    .full { grid-column: 1 / -1; }
+    .field label { display: block; margin-bottom: 6px; color: #475569; font-size: 13px; font-weight: 600; }
+
+    input[type="text"], input[type="url"], input[type="date"], input[type="time"], input[type="number"], select, textarea { width: 100%; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 12px; background: #f8fafc; color: var(--ink); font-size: 14px; transition: border-color 0.2s, box-shadow 0.2s; outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: #60a5fa; box-shadow: 0 0 0 4px #eff6ff; background: #fff; }
+    textarea { resize: vertical; }
+    .check { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #334155; }
+    .check input { width: 18px; height: 18px; border-radius: 6px; accent-color: var(--blue); }
+    .toggle-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 16px; border-radius: 16px; background: #f8fafc; border: 1px solid var(--line); }
+
+    .badge { display: inline-flex; align-items: center; justify-content: center; gap: 4px; margin: 4px 3px 0 0; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+    .badge.neutral { background: #f1f5f9; color: #475569; }
+    .badge.ok { background: #dcfce7; color: #166534; }
+    .badge.wait { background: #fef9c3; color: #9a3412; }
+    .badge.bad { background: #fee2e2; color: #991b1b; }
+    .badge.virtual { background: #f3e8ff; color: #7e22ce; }
+    .badge.face { background: #e0f2fe; color: #1e40af; }
+    
+    .progress { height: 8px; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+    .progress > span { display: block; height: 100%; background: #22c55e; border-radius: 999px; }
+    .progress-copy { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--muted); font-size: 12px; font-weight: 500; }
+
+    .list { display: grid; gap: 12px; margin-top: 16px; }
+    .list-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: #fff; transition: border-color 0.2s; }
+    .list-row:hover { border-color: #cbd5e1; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    
+    .attendance-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-top: 16px; padding: 12px; border-radius: 12px; background: #f8fafc; border: 1px solid var(--line); }
+    .attendance-checkpoint { margin-top: 6px; }
+    .attendance-checkpoint:first-child { margin-top: 0; }
+    
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin: 16px 0; width: 100%; }
+    .summary-card { padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+    .summary-card p { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; }
+    .summary-card strong { display: block; margin-top: 8px; font-size: 28px; font-weight: 800; color: #0f172a; }
+
+    .scroll { overflow-x: auto; max-width: 100%; max-height: 62vh; margin-top: 16px; border: 1px solid var(--line); border-radius: 16px; background: white; }
+    .scroll.compact { max-height: 56vh; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: max-content; font-size: 13px; }
+    th, td { padding: 10px 12px; border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; text-align: center; }
+    th { position: sticky; top: 0; z-index: 3; background: #f8fafc; color: #475569; font-weight: 600; }
+    th:first-child, td:first-child { position: sticky; left: 0; z-index: 2; min-width: 160px; background: white; text-align: left; }
+    th:first-child { z-index: 4; background: #f1f5f9; }
+    .badge-column { min-width: 110px; white-space: nowrap; }
+    .badge-column .cut { display: block; white-space: nowrap; font-size: 11px; }
+    .matrix-ok { background: #dcfce7; color: #166534; font-weight: 800; }
+    .matrix-miss { background: #fee2e2; color: #991b1b; font-weight: 800; }
+    .matrix-future { background: #fef9c3; color: #9a3412; }
+
+    .empty { padding: 32px 20px; border-radius: 16px; background: #f8fafc; border: 1px dashed #cbd5e1; color: #64748b; text-align: center; font-size: 14px; font-weight: 500; }
+    #loadingStatus { padding: 16px; text-align: center; font-size: 14px; font-weight: 600; border-radius: 16px; background: #eff6ff; color: var(--blue-dark); margin-bottom: 16px; }
+    
+    .loading-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: rgba(241,245,249,.88); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .16s ease, visibility .16s ease; }
+    .loading-overlay.visible { opacity: 1; visibility: visible; pointer-events: auto; }
+    .loading-card { width: min(320px, 100%); padding: 26px 24px; border: 1px solid #dbe4f0; border-radius: 22px; background: #fff; box-shadow: 0 20px 50px rgba(15, 23, 42, .16); text-align: center; }
+    .loading-spinner { width: 44px; height: 44px; margin: 0 auto 16px; border: 4px solid #dbeafe; border-top-color: #2563eb; border-radius: 999px; animation: loading-spin .75s linear infinite; }
+    .loading-message { margin: 0; color: #0f172a; font-size: 16px; font-weight: 700; }
+    .loading-hint { margin: 7px 0 0; color: #64748b; font-size: 13px; }
+    @keyframes loading-spin { to { transform: rotate(360deg); } }
+
+    .calendar-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 20px; color: #64748b; text-align: center; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 8px; }
+    .calendar-day { min-height: 96px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+    .calendar-day.outside { opacity: .4; background: #f8fafc; }
+    .calendar-day.today { border-color: #60a5fa; background: #eff6ff; }
+    .calendar-pill { display: block; overflow: hidden; margin-top: 4px; padding: 4px 6px; border-radius: 6px; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 700; cursor: pointer; }
+
+    .class-card { cursor: pointer; align-items: flex-start; }
+    .class-card.selected { border-color: #93c5fd; box-shadow: 0 0 0 4px #eff6ff; }
+    .member-grid { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; max-height: 360px; overflow-y: auto; padding-right: 4px; }
+    
+    .badge-requirement-grid { display: grid; gap: 8px; margin-top: 16px; max-height: 440px; overflow: auto; padding-right: 3px; }
+    .badge-requirement { display: grid; grid-template-columns: auto minmax(0, 1fr) 150px auto; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+    .project-assignment-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: white; }
+    .project-stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+    .project-stat { padding: 12px; border-radius: 12px; background: #f8fafc; text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); }
+    .project-stat b { display: block; margin-bottom: 2px; color: var(--ink); font-size: 20px; font-weight: 800; }
+
+    @media (max-width: 1000px) {
+      #trainerApp { display: block; margin-left: 0; }
+      aside { display: none; } 
+      .split { grid-template-columns: 1fr; }
     }
-    @media (max-width:700px) {
-      .topbar { display:block; } .form-grid,.toggle-grid { grid-template-columns:1fr; }
-      .full { grid-column:auto; } .summary-grid { grid-template-columns:1fr 1fr; }
-      .calendar-day { min-height:70px; padding:4px; } .calendar-pill { font-size:8px; }
-      .list-row { display:block; } .actions { margin-top:10px; justify-content:flex-start; }
-      .badge-requirement { grid-template-columns:auto minmax(0,1fr); }
-      .badge-requirement .due-override { grid-column:2; }
-      .badge-requirement .remove-badge { grid-column:2; justify-self:start; }
+    @media (max-width: 700px) {
+      .form-grid, .toggle-grid { grid-template-columns: 1fr; }
+      .full { grid-column: auto; } 
+      .summary-grid { grid-template-columns: 1fr 1fr; }
+      .calendar-day { min-height: 70px; padding: 4px; } .calendar-pill { font-size: 9px; }
+      .list-row, .project-assignment-row { flex-direction: column; align-items: stretch; }
+      .actions { margin-top: 12px; justify-content: flex-start; }
+      .badge-requirement { grid-template-columns: auto minmax(0, 1fr); }
+      .badge-requirement .due-override, .badge-requirement .remove-badge { grid-column: 2; justify-self: start; }
     }
   </style>
 </head>
-<body>
-  <div id="trainerLogin" style="position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:#f5f7fb;padding:24px">
-    <div class="panel" style="max-width:420px;text-align:center;padding:32px">
-      <h1>Instructor access</h1>
-      <p class="muted">Sign in with an approved instructor account.</p>
-      <button class="btn" onclick="trainerLogin()">Sign in with Google</button>
-      <p id="trainerError" style="color:#b3261e;font-size:14px"></p>
+<body class="min-h-screen text-slate-800">
+  <!-- Login Screen -->
+  <div id="trainerLogin" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-100 p-8">
+    <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-10 shadow-2xl text-center">
+      <div class="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
+        <i data-lucide="shield-check" class="h-8 w-8"></i>
+      </div>
+      <h2 class="text-2xl font-bold tracking-tight text-slate-900">Instructor Access</h2>
+      <p class="mt-3 text-sm leading-6 text-slate-500">Sign in with an approved instructor account.</p>
+      <button class="mt-8 flex w-full items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-3.5 font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-blue-100" onclick="trainerLogin()">
+        <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        <span>Sign in with Google</span>
+      </button>
+      <p id="trainerError" class="mt-4 text-sm font-medium text-red-600"></p>
     </div>
   </div>
 
+  <!-- Loading Overlay -->
   <div id="teacherLoadingOverlay" class="loading-overlay" role="status" aria-live="polite" aria-hidden="true">
     <div class="loading-card">
       <div class="loading-spinner" aria-hidden="true"></div>
@@ -150,272 +207,479 @@
     </div>
   </div>
 
-  <main id="trainerApp" class="container" style="display:none">
-    <header class="topbar">
-      <div>
-        <h1>☁️ SISG Instructor Portal</h1>
-        <div class="muted">Class-scoped attendance, badges, schedules, resources and mock exams.</div>
-      </div>
-      <span id="weekLabel" class="badge wait">Current week</span>
-    </header>
-
-    <div class="toolbar">
-      <input class="search" type="text" id="searchInput" placeholder="Search student name or email…" oninput="renderAll()">
-      <select id="classFilter" class="class-filter" onchange="changeClassFilter(this.value)"><option value="ALL">All classes</option></select>
-      <button class="btn secondary" onclick="syncAllBadges()">🏅 Sync badges</button>
-      <button class="btn orange" onclick="sendAttendanceEmails()">📩 Email attendance</button>
-      <button class="btn" onclick="loadData()">↻ Refresh</button>
-    </div>
-
-    <nav class="tabs">
-      <button class="tab active" data-view="students" onclick="switchTeacherView('students')">Overview</button>
-      <button class="tab" data-view="classes" onclick="switchTeacherView('classes')">Classes & schedule</button>
-      <button class="tab" data-view="projects" onclick="switchTeacherView('projects')">Groups & projects</button>
-      <button class="tab" data-view="weekly-badges" onclick="switchTeacherView('weekly-badges')">Badges due this week</button>
-      <button class="tab" data-view="badges" onclick="switchTeacherView('badges')">Badge tracker</button>
-      <button class="tab" data-view="scores" onclick="switchTeacherView('scores')">Mock scores</button>
-      <button class="tab" data-view="resources" onclick="switchTeacherView('resources')">Weekly resources</button>
-      <button class="tab" data-view="links" onclick="switchTeacherView('links')">Portal links</button>
-    </nav>
-
-    <div id="loadingStatus">Loading connected databases…</div>
-
-    <section id="view-students" class="view active">
-      <div id="overviewSummary" class="summary-grid"></div>
-      <div id="traineeGrid" class="grid"></div>
-    </section>
-
-    <section id="view-classes" class="view">
-      <div class="split">
-        <div class="panel">
-          <h2>Class settings</h2>
-          <p class="muted">Create a class, control its portal features, then assign students.</p>
-          <div class="form-grid">
-            <div class="field"><label>Class ID</label><input id="classId" type="text" placeholder="e.g. GCP-AUG-01"></div>
-            <div class="field"><label>Class name</label><input id="className" type="text" placeholder="e.g. August GCP Cohort"></div>
-            <div class="field full">
-              <label>Initial badge range</label>
-              <input id="classBadgeColumns" type="text" value="ALL" placeholder="ALL, E:X or Y:AQ">
-              <small class="muted">Used as the starting selection for new or legacy classes. After saving individual badge requirements, the managed list becomes authoritative.</small>
-            </div>
-            <div class="full toggle-grid">
-              <label class="check"><input id="classActive" type="checkbox" checked>Active class</label>
-              <label class="check"><input id="classPortalEnabled" type="checkbox" checked>Student portal</label>
-              <label class="check"><input id="classAttendanceEnabled" type="checkbox" checked>Attendance</label>
-              <label class="check"><input id="classBadgesEnabled" type="checkbox" checked>Badge tracking</label>
-              <label class="check"><input id="classResourcesEnabled" type="checkbox" checked>Weekly resources</label>
-              <label class="check"><input id="classMockExamsEnabled" type="checkbox" checked>Mock exams</label>
-            </div>
-            <div class="full actions" style="justify-content:flex-start">
-              <button class="btn green" onclick="saveClass()">Save class</button>
-              <button class="btn secondary" onclick="newClass()">New class</button>
-            </div>
-          </div>
-          <div id="classList" class="list"></div>
+  <!-- Main App Shell -->
+  <div id="trainerApp" class="hidden min-h-screen w-full">
+    <!-- Sidebar -->
+    <aside class="fixed inset-y-0 left-0 z-30 flex w-72 flex-col border-r border-slate-200 bg-white">
+      <div class="flex h-20 items-center gap-3 border-b border-slate-100 px-7">
+        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
+          <i data-lucide="cloud" class="h-6 w-6"></i>
         </div>
-
         <div>
-          <div class="panel">
-            <h2>Badge requirements</h2>
-            <p class="muted">Create badges once, then select which classes require them. Removing a badge hides it safely while preserving past tracker records.</p>
-            <div class="form-grid" style="margin-top:12px">
-              <div class="field"><label>New badge name</label><input id="newBadgeName" type="text" placeholder="Exact Google Skills badge name"></div>
-              <div class="field"><label>Badge/course URL (optional)</label><input id="newBadgeUrl" type="url" placeholder="https://…"></div>
-              <div class="field"><label>Default due date (optional)</label><input id="newBadgeDueDate" type="date"></div>
-              <div class="field" style="align-self:end"><button class="btn green" type="button" onclick="addBadgeDefinition()">Add badge</button></div>
-            </div>
-            <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
-            <p id="badgeRequirementHint" class="muted">Choose one class to manage its required badges.</p>
-            <div class="actions" style="justify-content:flex-start;margin-top:12px">
-              <input id="badgeRequirementSearch" type="text" placeholder="Search badges…" oninput="filterClassBadgeRequirements()" style="flex:1 1 190px">
-              <button class="btn small secondary" type="button" onclick="setAllClassBadges(true)">Select all</button>
-              <button class="btn small secondary" type="button" onclick="setAllClassBadges(false)">Clear</button>
-            </div>
-            <div id="classBadgeRequirementGrid" class="badge-requirement-grid"></div>
-            <button id="saveClassBadgesBtn" class="btn green" style="margin-top:14px" onclick="saveClassBadges()">Apply badge requirements</button>
-          </div>
-
-          <div class="panel" style="margin-top:18px">
-            <h2>Student membership</h2>
-            <p id="membershipHint" class="muted">Choose one class from the filter to assign students.</p>
-            <div id="memberGrid" class="member-grid"></div>
-            <button id="saveMembersBtn" class="btn green" style="margin-top:14px" onclick="saveClassMembers()">Save membership</button>
-          </div>
-
-          <div class="panel" style="margin-top:18px">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-              <div><h2>Monthly class calendar</h2><p class="muted">Virtual and face-to-face sessions are visibly distinct.</p></div>
-              <div class="actions"><button class="btn small secondary" onclick="changeTeacherMonth(-1)">‹</button><strong id="teacherMonthLabel"></strong><button class="btn small secondary" onclick="changeTeacherMonth(1)">›</button></div>
-            </div>
-            <div class="calendar-header"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
-            <div id="teacherCalendar" class="calendar-grid"></div>
-          </div>
+          <p class="font-bold text-slate-900">SISG Portal</p>
+          <p class="text-xs text-slate-500">Instructor workspace</p>
         </div>
       </div>
 
-      <div class="panel" style="margin-top:18px">
-        <h2>Manage class sessions</h2>
-        <p class="muted">Sessions feed the student weekly lesson calendar, monthly delivery calendar, and 09:00/13:00 attendance automation.</p>
-        <input id="editingCourseId" type="hidden">
-        <div class="form-grid">
-          <div class="field"><label>Course/session ID</label><input id="courseId" type="text" placeholder="e.g. W1-GCP-AM"></div>
-          <div class="field"><label>Title</label><input id="courseTitle" type="text" placeholder="Course title"></div>
-          <div class="field"><label>Class mode</label><select id="courseMode"><option value="Face to face">Face to face</option><option value="Virtual">Virtual</option></select></div>
-          <div class="field"><label>Date</label><input id="courseDate" type="date"></div>
-          <div class="field"><label>Course start</label><input id="courseStart" type="time" value="09:00"></div>
-          <div class="field"><label>Attendance checkpoint</label><select id="courseSession" onchange="applySessionDefaults()"><option value="Morning">Morning · 09:00</option><option value="Afternoon">Afternoon · 13:00</option></select></div>
-          <div class="field"><label>Attendance time</label><input id="courseAttendanceTime" type="time" value="09:00"></div>
-          <div class="field"><label>Check-in opens</label><input id="courseOpens" type="time" value="08:30"></div>
-          <div class="field"><label>Attendance label</label><input id="courseAttendanceLabel" type="text" value="Lesson start"></div>
-          <div class="field"><label>Portal status</label><select id="courseStatus"><option>Published</option><option>Draft</option><option>Cancelled</option></select></div>
-          <div class="field full"><label>Description</label><textarea id="courseDescription" rows="3"></textarea></div>
-          <label class="check"><input id="courseAttendanceEnabled" type="checkbox" checked>Attendance enabled</label>
-          <div class="actions" style="justify-content:flex-start"><button class="btn green" onclick="saveCourse()">Save session</button><button class="btn secondary" onclick="resetCourseForm()">Clear</button></div>
-        </div>
-        <div id="courseList" class="list"></div>
-      </div>
-    </section>
+      <nav class="flex-1 space-y-1 p-4" aria-label="Main navigation">
+        <button class="nav-btn active flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition" data-view="students" onclick="switchTeacherView('students')">
+          <i data-lucide="layout-dashboard" class="h-5 w-5"></i><span>Overview</span>
+        </button>
+        <button class="nav-btn flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition" data-view="student-management" onclick="switchTeacherView('student-management')">
+          <i data-lucide="users" class="h-5 w-5"></i><span>Student Management</span>
+        </button>
+        <button class="nav-btn flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition" data-view="class-management" onclick="switchTeacherView('class-management')">
+          <i data-lucide="book-open" class="h-5 w-5"></i><span>Class Management</span>
+        </button>
+        <button class="nav-btn flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition" data-view="badge-management" onclick="switchTeacherView('badge-management')">
+          <i data-lucide="award" class="h-5 w-5"></i><span>Badge Management</span>
+        </button>
+        <button class="nav-btn flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition" data-view="projects" onclick="switchTeacherView('projects')">
+          <i data-lucide="folder-kanban" class="h-5 w-5"></i><span>Groups & projects</span>
+        </button>
+        <button class="nav-btn flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition" data-view="links" onclick="switchTeacherView('links')">
+          <i data-lucide="link-2" class="h-5 w-5"></i><span>Portal links</span>
+        </button>
+        <button class="nav-btn flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition" data-view="scores" onclick="switchTeacherView('scores')">
+          <i data-lucide="clipboard-check" class="h-5 w-5"></i><span>Student Scores</span>
+        </button>
+        <button class="nav-btn flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition" data-view="feedback" onclick="switchTeacherView('feedback')">
+          <i data-lucide="message-square" class="h-5 w-5"></i><span>Feedback</span>
+        </button>
+        <button class="nav-btn flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition" data-view="instructor-management" onclick="switchTeacherView('instructor-management')">
+          <i data-lucide="shield" class="h-5 w-5"></i><span>Instructor Management</span>
+        </button>
+      </nav>
+    </aside>
 
-    <section id="view-projects" class="view">
-      <div class="panel">
-        <h2>Project groups</h2>
-        <p id="projectAdminHint" class="muted">Choose one class to create groups and assign students. A student can belong to one active project group per class.</p>
-        <div class="project-admin-grid">
-          <div class="card">
-            <h3>Create or edit a group</h3>
-            <div class="form-grid">
-              <div class="field"><label>Group ID</label><input id="projectGroupId" type="text" placeholder="e.g. GROUP-1"></div>
-              <div class="field"><label>Group name</label><input id="projectGroupName" type="text" placeholder="e.g. Group 1"></div>
-              <div class="field full"><label>Notes</label><textarea id="projectGroupNotes" rows="3" placeholder="Optional instructor notes"></textarea></div>
-              <label class="check"><input id="projectGroupActive" type="checkbox" checked>Active group</label>
-              <div class="actions" style="justify-content:flex-start"><button id="saveProjectGroupBtn" class="btn green" onclick="saveProjectGroup()">Save group</button><button class="btn secondary" onclick="resetProjectGroupForm()">Clear</button></div>
+    <!-- Main Content Area -->
+    <div class="ml-72 flex min-h-screen flex-1 flex-col">
+      <header class="sticky top-0 z-20 flex h-20 items-center justify-between border-b border-slate-200 bg-white/95 px-8 backdrop-blur">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Instructor portal</p>
+          <h1 id="headerTitle" class="mt-1 text-xl font-bold tracking-tight text-slate-900">Overview</h1>
+        </div>
+        <div class="flex items-center gap-4">
+          <span id="weekLabel" class="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">Current week</span>
+          <button class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800" title="Refresh data" onclick="loadData()">
+            <i data-lucide="refresh-cw" class="h-5 w-5"></i>
+          </button>
+        </div>
+      </header>
+
+      <main class="flex-1 p-8 xl:p-10">
+        <div class="mx-auto max-w-7xl">
+          
+          <!-- Toolbar -->
+          <div class="toolbar">
+            <input class="search" type="text" id="searchInput" placeholder="Search student name or email…" oninput="renderAll()">
+            <select id="classFilter" class="class-filter" onchange="changeClassFilter(this.value)"><option value="ALL">All classes</option></select>
+            <button class="btn green" onclick="acknowledgeAllAttendance()"><i data-lucide="check-circle" class="h-4 w-4"></i> Verify all checked-in</button>
+            <button class="btn secondary" onclick="syncAllBadges()"><i data-lucide="refresh-ccw" class="h-4 w-4"></i> Sync badges</button>
+            <button class="btn orange" onclick="sendAttendanceEmails()"><i data-lucide="mail" class="h-4 w-4"></i> Email attendance</button>
+          </div>
+
+          <div id="loadingStatus">Loading connected databases…</div>
+
+          <!-- Views -->
+          <section id="view-students" class="view active">
+            <div id="overviewSummary" class="summary-grid"></div>
+            <div id="traineeGrid" class="grid"></div>
+          </section>
+
+          <section id="view-student-management" class="view">
+            <div class="split">
+              <div class="panel">
+                <div class="panel-header">
+                  <div class="icon-box icon-slate"><i data-lucide="settings"></i></div>
+                  <div><h2>Class settings</h2><p>Create a class, control its portal features, then assign students.</p></div>
+                </div>
+                <div class="form-grid">
+                  <div class="field"><label>Class ID</label><input id="classId" type="text" placeholder="e.g. GCP-AUG-01"></div>
+                  <div class="field"><label>Class name</label><input id="className" type="text" placeholder="e.g. August GCP Cohort"></div>
+                  <div class="field full">
+                    <label>Initial badge range</label>
+                    <input id="classBadgeColumns" type="text" value="ALL" placeholder="ALL, E:X or Y:AQ">
+                    <small class="muted">Used as the starting selection for new or legacy classes. After saving individual badge requirements, the managed list becomes authoritative.</small>
+                  </div>
+                  <div class="full toggle-grid">
+                    <label class="check"><input id="classActive" type="checkbox" checked>Active class</label>
+                    <label class="check"><input id="classPortalEnabled" type="checkbox" checked>Student portal</label>
+                    <label class="check"><input id="classAttendanceEnabled" type="checkbox" checked>Attendance</label>
+                    <label class="check"><input id="classBadgesEnabled" type="checkbox" checked>Badge tracking</label>
+                    <label class="check"><input id="classResourcesEnabled" type="checkbox" checked>Weekly resources</label>
+                    <label class="check"><input id="classMockExamsEnabled" type="checkbox" checked>Mock exams</label>
+                  </div>
+                  <div class="full actions" style="justify-content:flex-start">
+                    <button class="btn green" onclick="saveClass()">Save class</button>
+                    <button class="btn secondary" onclick="newClass()">New class</button>
+                    <button id="deleteClassBtn" class="btn danger" type="button" onclick="deleteClassRecord()" disabled>Delete class</button>
+                  </div>
+                </div>
+                <div id="classList" class="list"></div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-header">
+                  <div class="icon-box icon-indigo"><i data-lucide="users"></i></div>
+                  <div><h2>Student membership</h2><p id="membershipHint">Choose one class from the filter to assign students.</p></div>
+                </div>
+                <div class="form-grid" style="margin-top:0">
+                  <div class="field full">
+                    <label>Add students</label>
+                    <div id="newStudentRows">
+                      <div class="student-add-row">
+                        <input type="text" class="student-add-name" placeholder="Full name">
+                        <input type="text" class="student-add-email" placeholder="name@example.com">
+                        <button type="button" class="btn small danger" onclick="removeStudentRow(this)">&times;</button>
+                      </div>
+                    </div>
+                    <button class="btn small secondary" type="button" onclick="addStudentRow()">+ Add another</button>
+                  </div>
+                </div>
+                <div class="actions" style="justify-content:flex-start; margin-top:14px; margin-bottom:14px;">
+                  <button id="addRosterStudentBtn" class="btn green" type="button" onclick="addRosterStudent()">Add to Roster</button>
+                  <button class="btn secondary" type="button" onclick="repairTrackerRows()">Repair missing tracker rows</button>
+                </div>
+                
+                <div id="memberGrid" class="member-grid"></div>
+                <button id="saveMembersBtn" class="btn green" style="margin-top:16px" onclick="saveClassMembers()">Save membership</button>
+                <div id="inactiveRosterList" class="list" style="margin-top:20px"></div>
+              </div>
             </div>
-            <div id="projectGroupList" class="list"></div>
-          </div>
-          <div class="card">
-            <h3>Assign students to groups</h3>
-            <p class="muted" style="font-size:12px">Only active members of the selected class are listed. Leave a student unassigned by selecting “No group”.</p>
-            <div id="projectGroupAssignmentGrid" class="list"></div>
-            <button id="saveProjectGroupAssignmentsBtn" class="btn green" style="margin-top:14px" onclick="saveProjectGroupAssignments()">Save group assignments</button>
-          </div>
-        </div>
-      </div>
+          </section>
 
-      <div class="panel" style="margin-top:18px">
-        <h2>Project definitions</h2>
-        <p class="muted">The default values below follow the Badge Tracker project brief: architecture/business/technical/cost deck, working POC, future state, 30-minute presentation, 10-minute Q&amp;A, and a US$300 credit ceiling.</p>
-        <div class="form-grid">
-          <div class="field"><label>Project ID</label><input id="projectId" type="text" placeholder="e.g. FINAL-PROJECT"></div>
-          <div class="field"><label>Project name</label><input id="projectName" type="text" placeholder="e.g. Final Google Cloud Project"></div>
-          <div class="field"><label>Project type</label><select id="projectType"><option>Mini Project</option><option selected>Final Project</option><option>Capstone</option><option>Other</option></select></div>
-          <div class="field"><label>Due date</label><input id="projectDueDate" type="date"></div>
-          <div class="field full"><label>Description</label><textarea id="projectDescription" rows="3" placeholder="Project purpose and expected outcome"></textarea></div>
-          <div class="field full"><label>Submission requirements</label><textarea id="projectRequirements" rows="5">Deck: solution architecture diagram, key business points, technical evaluation, assumptions and cost table.
+          <section id="view-class-management" class="view">
+            <div class="panel">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;">
+                <div class="panel-header" style="margin-bottom:0;">
+                  <div class="icon-box icon-blue"><i data-lucide="calendar-days"></i></div>
+                  <div><h2>Monthly class calendar</h2><p>Virtual and face-to-face sessions are visibly distinct.</p></div>
+                </div>
+                <div class="actions"><button class="btn small secondary" onclick="changeTeacherMonth(-1)">‹</button><strong id="teacherMonthLabel"></strong><button class="btn small secondary" onclick="changeTeacherMonth(1)">›</button></div>
+              </div>
+              <div class="calendar-header"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+              <div id="teacherCalendar" class="calendar-grid"></div>
+            </div>
+
+            <div class="panel" style="margin-top:24px">
+              <div class="panel-header">
+                <div class="icon-box icon-amber"><i data-lucide="book-open"></i></div>
+                <div><h2>Manage class sessions</h2><p>Sessions feed the student weekly lesson calendar, monthly delivery calendar, and attendance automation.</p></div>
+              </div>
+              <input id="editingCourseId" type="hidden">
+              <div style="padding:16px;border:1px solid var(--line);border-radius:16px;background:#f8fafc;margin-top:16px">
+                <p style="margin:0 0 10px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--blue-dark)">Step 1 — choose this first</p>
+                <div class="form-grid" style="margin-top:0">
+                  <div class="field full"><label>Attendance checkpoint</label><select id="courseSession" onchange="applySessionDefaults()"><option value="Morning">Morning · 09:00</option><option value="Afternoon">Afternoon · 13:00</option><option value="Both">Both · 09:00 &amp; 13:00</option></select></div>
+                  <p class="muted" style="grid-column:1/-1;margin:-6px 0 0;font-size:12px">Picking a checkpoint auto-fills Course start, Attendance time, Check-in opens and Attendance label below — adjust them afterward only if this class runs on a different schedule.</p>
+                  <div class="field"><label>Course start</label><input id="courseStart" type="time" value="09:00"></div>
+                  <div class="field"><label>Attendance time</label><input id="courseAttendanceTime" type="time" value="09:00"></div>
+                  <div class="field"><label>Check-in opens</label><input id="courseOpens" type="time" value="08:30"></div>
+                  <div class="field"><label>Attendance label</label><input id="courseAttendanceLabel" type="text" value="Lesson start"></div>
+                  <p id="courseSessionBothHint" class="muted" style="display:none;grid-column:1/-1;margin:-6px 0 0;font-size:12px">"Both" saves two linked sessions (AM at 09:00/08:30, PM at 13:00/12:30) using the standard times — the fields above are locked while this is selected.</p>
+                </div>
+              </div>
+              <div class="form-grid">
+                <div class="field"><label>Course/session ID</label><input id="courseId" type="text" placeholder="e.g. W1-GCP-AM"></div>
+                <div class="field"><label>Title</label><input id="courseTitle" type="text" placeholder="Course title"></div>
+                <div class="field"><label>Class mode</label><select id="courseMode"><option value="Face to face">Face to face</option><option value="Virtual">Virtual</option></select></div>
+                <div class="field"><label>Date</label><input id="courseDate" type="date"></div>
+                <div class="field"><label>Portal status</label><select id="courseStatus"><option>Published</option><option>Draft</option><option>Cancelled</option></select></div>
+                <div class="field full"><label>Description</label><textarea id="courseDescription" rows="3"></textarea></div>
+                <label class="check"><input id="courseAttendanceEnabled" type="checkbox" checked>Attendance enabled</label>
+              </div>
+              <hr style="border:0;border-top:1px solid var(--line);margin:24px 0">
+              <h3 style="margin:0 0 4px">Resources for this session (optional)</h3>
+              <p class="muted" style="margin:0 0 16px">Automatically attached to this exact session and week. Add one or more links/files; each becomes its own resource. If "Both" is selected above, resources are attached to both the AM and PM sessions.</p>
+              <div class="form-grid">
+                <div class="field full"><label>Resource description (applies to every link added below)</label><textarea id="resourceDescription" rows="2" placeholder="What students should use this for"></textarea></div>
+                <label class="check"><input id="resourcePublished" type="checkbox" checked>Published to students when the week starts</label>
+              </div>
+              <div id="resourceLinkRows" style="margin-top:16px"></div>
+              <button id="addResourceLinkRowBtn" class="btn small secondary" type="button" onclick="addResourceLinkRow()">+ Add another link</button>
+              <div class="actions" style="justify-content:flex-start;margin-top:20px"><button class="btn green" onclick="saveCourse()">Save session</button><button class="btn secondary" onclick="resetCourseForm()">Clear</button></div>
+            </div>
+
+            <div class="panel" style="margin-top:24px">
+              <div class="panel-header">
+                <div class="icon-box icon-green"><i data-lucide="folder-open"></i></div>
+                <div><h2>Sessions &amp; resources</h2><p>Grouped by week. Each session's resources are listed right below it.</p></div>
+              </div>
+              <div class="actions" style="justify-content:flex-start;margin-top:12px;flex-wrap:wrap;gap:16px">
+                <span style="display:flex;align-items:center;gap:8px"><label class="check"><input id="courseSelectAll" type="checkbox" onchange="toggleAllCourseSelection(this.checked)">Select sessions</label><button id="deleteSelectedCoursesBtn" class="btn small danger" type="button" onclick="deleteSelectedCourses()" disabled>Delete selected (0)</button></span>
+                <span style="display:flex;align-items:center;gap:8px"><label class="check"><input id="resourceSelectAll" type="checkbox" onchange="toggleAllResourceSelection(this.checked)">Select resources</label><button id="deleteSelectedResourcesBtn" class="btn small danger" type="button" onclick="deleteSelectedResources()" disabled>Delete selected (0)</button></span>
+              </div>
+              <div id="sessionsAndResourcesList" style="margin-top:16px"></div>
+            </div>
+          </section>
+
+          <section id="view-badge-management" class="view">
+            <div class="panel">
+              <div class="panel-header">
+                <div class="icon-box icon-amber"><i data-lucide="award"></i></div>
+                <div><h2>Badge requirements</h2><p>Create badges once, then select which classes require them. Removing a badge hides it safely.</p></div>
+              </div>
+              <div class="form-grid" style="margin-top:16px">
+                <div class="field"><label>New badge name</label><input id="newBadgeName" type="text" placeholder="Exact Google Skills badge name"></div>
+                <div class="field"><label>Badge/course URL (optional)</label><input id="newBadgeUrl" type="url" placeholder="https://…"></div>
+                <div class="field"><label>Default due date (optional)</label><input id="newBadgeDueDate" type="date"></div>
+                <div class="field" style="align-self:end"><button class="btn green" type="button" onclick="addBadgeDefinition()">Add badge</button></div>
+              </div>
+              <hr style="border:0;border-top:1px solid var(--line);margin:24px 0">
+              <p id="badgeRequirementHint" class="muted">Choose one class to manage its required badges.</p>
+              <div class="actions" style="justify-content:flex-start;margin-top:16px">
+                <input id="badgeRequirementSearch" type="text" placeholder="Search badges…" oninput="filterClassBadgeRequirements()" style="flex:1 1 190px">
+                <button class="btn small secondary" type="button" onclick="setAllClassBadges(true)">Select all</button>
+                <button class="btn small secondary" type="button" onclick="setAllClassBadges(false)">Clear</button>
+              </div>
+              <div id="classBadgeRequirementGrid" class="badge-requirement-grid"></div>
+              <button id="saveClassBadgesBtn" class="btn green" style="margin-top:16px" onclick="saveClassBadges()">Apply badge requirements</button>
+            </div>
+
+            <div class="panel" style="margin-top:24px">
+              <div class="panel-header">
+                <div class="icon-box icon-orange"><i data-lucide="calendar-clock"></i></div>
+                <div><h2>Badges due this week</h2><p id="badgeWeekText">Progress is calculated from the real due-date headers in the Badge Tracker.</p></div>
+              </div>
+              <div id="weeklyBadgeSummary" class="grid" style="margin-top:20px"></div>
+            </div>
+
+            <div class="panel" style="margin-top:24px">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:20px;">
+                <div class="panel-header" style="margin-bottom:0;">
+                  <div class="icon-box icon-purple"><i data-lucide="layout-list"></i></div>
+                  <div><h2>Compact skill badge tracker</h2><p>The tracker stays inside a fixed scrolling area; names and headers remain pinned.</p></div>
+                </div>
+                <select id="badgeScope" style="width:auto" onchange="renderBadgeMatrix()"><option value="week">This week + overdue</option><option value="all">All badges</option></select>
+              </div>
+              <div id="badgeMatrix" class="scroll compact"></div>
+            </div>
+          </section>
+
+          <section id="view-projects" class="view">
+            <div class="panel">
+              <div class="panel-header">
+                <div class="icon-box icon-blue"><i data-lucide="users-round"></i></div>
+                <div><h2>Project groups</h2><p id="projectAdminHint">Choose one class to create groups and assign students.</p></div>
+              </div>
+              <div class="project-admin-grid">
+                <div class="card">
+                  <h3>Create or edit a group</h3>
+                  <div class="form-grid">
+                    <div class="field"><label>Group ID</label><input id="projectGroupId" type="text" placeholder="e.g. GROUP-1"></div>
+                    <div class="field"><label>Group name</label><input id="projectGroupName" type="text" placeholder="e.g. Group 1"></div>
+                    <div class="field full"><label>Notes</label><textarea id="projectGroupNotes" rows="3" placeholder="Optional instructor notes"></textarea></div>
+                    <label class="check"><input id="projectGroupActive" type="checkbox" checked>Active group</label>
+                    <div class="actions" style="justify-content:flex-start"><button id="saveProjectGroupBtn" class="btn green" onclick="saveProjectGroup()">Save group</button><button class="btn secondary" onclick="resetProjectGroupForm()">Clear</button></div>
+                  </div>
+                  <div id="projectGroupList" class="list"></div>
+                </div>
+                <div class="card">
+                  <h3>Assign students to groups</h3>
+                  <p class="muted" style="font-size:12px">Only active members of the selected class are listed. Leave a student unassigned by selecting “No group”.</p>
+                  <div id="projectGroupAssignmentGrid" class="list"></div>
+                  <button id="saveProjectGroupAssignmentsBtn" class="btn green" style="margin-top:16px" onclick="saveProjectGroupAssignments()">Save group assignments</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel" style="margin-top:24px">
+              <div class="panel-header">
+                <div class="icon-box icon-green"><i data-lucide="file-text"></i></div>
+                <div><h2>Project definitions</h2><p>The default values below follow the Badge Tracker project brief.</p></div>
+              </div>
+              <div class="form-grid">
+                <div class="field"><label>Project ID</label><input id="projectId" type="text" placeholder="e.g. FINAL-PROJECT"></div>
+                <div class="field"><label>Project name</label><input id="projectName" type="text" placeholder="e.g. Final Google Cloud Project"></div>
+                <div class="field"><label>Project type</label><select id="projectType"><option>Mini Project</option><option selected>Final Project</option><option>Capstone</option><option>Other</option></select></div>
+                <div class="field"><label>Due date</label><input id="projectDueDate" type="date"></div>
+                <div class="field full"><label>Description</label><textarea id="projectDescription" rows="3" placeholder="Project purpose and expected outcome"></textarea></div>
+                <div class="field full"><label>Submission requirements</label><textarea id="projectRequirements" rows="5">Deck: solution architecture diagram, key business points, technical evaluation, assumptions and cost table.
 Proof of Concept: at least 3 working features, including AI and Agentic AI / Gemini Enterprise where applicable.
 Include the future-state design. Prepare a 30-minute presentation and 10-minute Q&amp;A.
 Do not exceed the US$300 free credit; stop cloud services when not in use.</textarea></div>
-          <div class="field"><label>Minimum working features</label><input id="projectMinimumFeatures" type="number" min="0" value="3"></div>
-          <div class="field"><label>Credit limit (USD)</label><input id="projectCreditLimit" type="number" min="0" value="300"></div>
-          <div class="field"><label>Presentation minutes</label><input id="projectPresentationMinutes" type="number" min="0" value="30"></div>
-          <div class="field"><label>Q&amp;A minutes</label><input id="projectQaMinutes" type="number" min="0" value="10"></div>
-          <label class="check"><input id="projectPublished" type="checkbox" checked>Published to assigned groups</label>
-          <label class="check"><input id="projectPeerEvaluation" type="checkbox" checked>Peer evaluation enabled</label>
-          <div class="actions full" style="justify-content:flex-start"><button id="saveProjectBtn" class="btn green" onclick="saveProjectDefinition()">Save project</button><button class="btn secondary" onclick="resetProjectForm()">Clear</button></div>
+                <div class="field"><label>Minimum working features</label><input id="projectMinimumFeatures" type="number" min="0" value="3"></div>
+                <div class="field"><label>Credit limit (USD)</label><input id="projectCreditLimit" type="number" min="0" value="300"></div>
+                <div class="field"><label>Presentation minutes</label><input id="projectPresentationMinutes" type="number" min="0" value="30"></div>
+                <div class="field"><label>Q&amp;A minutes</label><input id="projectQaMinutes" type="number" min="0" value="10"></div>
+                <label class="check"><input id="projectPublished" type="checkbox" checked>Published to assigned groups</label>
+                <div class="actions full" style="justify-content:flex-start"><button id="saveProjectBtn" class="btn green" onclick="saveProjectDefinition()">Save project</button><button class="btn secondary" onclick="resetProjectForm()">Clear</button></div>
+              </div>
+              <div id="projectDefinitionList" class="list"></div>
+            </div>
+
+            <div class="panel" style="margin-top:24px">
+              <div class="panel-header">
+                <div class="icon-box icon-indigo"><i data-lucide="briefcase"></i></div>
+                <div><h2>Assign projects to groups</h2><p>The same project definition can be reused while each group receives a different use case.</p></div>
+              </div>
+              <div class="form-grid">
+                <div class="field"><label>Group</label><select id="groupProjectGroup"></select></div>
+                <div class="field"><label>Project</label><select id="groupProjectProject"></select></div>
+                <div class="field full"><label>Use case / organisation</label><textarea id="groupProjectUseCase" rows="3" placeholder="e.g. Cymbal Retail — catalogue enrichment and conversational commerce"></textarea></div>
+                <div class="field"><label>Project brief URL</label><input id="groupProjectBriefUrl" type="url" placeholder="https://…"></div>
+                <div class="field"><label>Group trial account</label><input id="groupProjectTrialAccount" type="text" placeholder="group account email"></div>
+                <div class="field"><label>Cloud console URL</label><input id="groupProjectConsoleUrl" type="url" placeholder="https://console.cloud.google.com/…"></div>
+                <div class="field"><label>Presentation order</label><input id="groupProjectPresentationOrder" type="text" placeholder="e.g. 3rd"></div>
+                <div class="field full"><label>Group-specific notes</label><textarea id="groupProjectNotes" rows="3"></textarea></div>
+                <label class="check"><input id="groupProjectActive" type="checkbox" checked>Active assignment</label>
+                <div class="actions full" style="justify-content:flex-start"><button id="saveGroupProjectBtn" class="btn green" onclick="saveGroupProjectAssignment()">Assign project</button><button class="btn secondary" onclick="resetGroupProjectForm()">Clear</button></div>
+              </div>
+              <div id="groupProjectList" class="list"></div>
+            </div>
+
+            <div class="panel" style="margin-top:24px">
+              <div class="panel-header">
+                <div class="icon-box icon-purple"><i data-lucide="upload-cloud"></i></div>
+                <div><h2>Submission</h2><p>Group submissions are shared across the team.</p></div>
+              </div>
+              <div id="projectSubmissionSummary" class="summary-grid"></div>
+              <div id="projectSubmissionList" class="list"></div>
+            </div>
+          </section>
+
+          <section id="view-links" class="view">
+            <div class="panel">
+              <div class="panel-header">
+                <div class="icon-box icon-orange"><i data-lucide="link"></i></div>
+                <div><h2>Class feedback links</h2><p id="classFeedbackLinkHint">Choose one class from the class filter. Each class can publish different Feedback Form links.</p></div>
+              </div>
+              <div id="classFeedbackLinkEditor" class="list"></div>
+              <button id="saveClassFeedbackLinksBtn" class="btn green" style="margin-top:20px" onclick="saveClassFeedbackLinks()">Save class feedback links</button>
+            </div>
+            <div class="panel" style="margin-top:24px">
+              <div class="panel-header">
+                <div class="icon-box icon-purple"><i data-lucide="graduation-cap"></i></div>
+                <div><h2>Class exam links</h2><p id="classExamLinkHint">Choose one class from the class filter. Each class can publish a different mock exam link.</p></div>
+              </div>
+              <div id="classExamLinkEditor" class="list"></div>
+              <button id="saveClassExamLinksBtn" class="btn green" style="margin-top:20px" onclick="saveClassExamLinks()">Save class exam links</button>
+            </div>
+          </section>
+
+          <section id="view-scores" class="view">
+            <div class="panel">
+              <div class="panel-header">
+                <div class="icon-box icon-indigo"><i data-lucide="clipboard-check"></i></div>
+                <div><h2>Mock exam score showcase</h2><p>Latest PCA Sample Questions, Mock Exam 1 and 2 scores from the connected Badge Tracker and submission history.</p></div>
+              </div>
+              <div id="scoreSummary" class="summary-grid"></div>
+              <div id="scoreTable" class="scroll"></div>
+            </div>
+          </section>
+
+          <section id="view-feedback" class="view">
+            <div class="panel">
+              <div class="panel-header">
+                <div class="icon-box icon-orange"><i data-lucide="message-square"></i></div>
+                <div><h2>Student feedback</h2><p>Kudos, concerns and suggestions submitted through the student portal.</p></div>
+              </div>
+              <div id="feedbackSummary" class="summary-grid"></div>
+              <div class="actions" style="justify-content:flex-start;margin-top:16px">
+                <input id="feedbackSearch" type="text" placeholder="Search message, name or email…" oninput="renderFeedbackLogs()" style="flex:1 1 260px">
+                <select id="feedbackTypeFilter" style="width:auto" onchange="renderFeedbackLogs()">
+                  <option value="ALL">All types</option>
+                  <option value="Positive">🌟 Positive</option>
+                  <option value="Negative">⚠️ Concern</option>
+                  <option value="Suggestion">💡 Suggestion</option>
+                </select>
+              </div>
+              <div id="feedbackList" class="list"></div>
+            </div>
+            
+            <div class="panel" style="margin-top:24px">
+              <div class="panel-header">
+                <div class="icon-box icon-indigo"><i data-lucide="check-square"></i></div>
+                <div><h2>Form Submission Status</h2><p>Track which students have marked Feedback Form 1 and 2 as submitted. You can manually override their status.</p></div>
+              </div>
+              <div id="formSubmissionsSummary" class="summary-grid"></div>
+              <div id="formSubmissionsTable" class="scroll"></div>
+            </div>
+
+            <div class="panel" style="margin-top:24px">
+              <div class="panel-header">
+                <div class="icon-box icon-red"><i data-lucide="flag"></i></div>
+                <div><h2>Report a behavior</h2><p>Log a behavioral concern or red flag against a specific trainee. Visible to instructors only.</p></div>
+              </div>
+              <div class="form-grid">
+                <div class="field"><label>Date</label><input id="behaviorReportDate" type="date"></div>
+                <div class="field"><label>Trainee</label><select id="behaviorReportTrainee"><option value="">-- Choose trainee --</option></select></div>
+                <div class="field">
+                  <label>Category</label>
+                  <select id="behaviorReportCategory">
+                    <option>Core Values &amp; Googleyness</option>
+                    <option>Technical Execution &amp; Cognitive Agility</option>
+                    <option>Environment-Specific BAC</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+                <div class="field full">
+                  <label>Observed behavior (red flag)</label>
+                  <select id="behaviorReportBehavior" onchange="toggleBehaviorReportOther()">
+                    <option value="">-- Select a behavior --</option>
+                    <option>Camera off without notice; works in silos; interrupts or dismisses others.</option>
+                    <option>Stays silent when confused; leaves surveys blank; reacts defensively to feedback.</option>
+                    <option>Arrives late; distracted by phone/side chats; caught multitasking on other apps.</option>
+                    <option>Only speaks when cold-called; ignores chat updates and missed announcements.</option>
+                    <option>Panics or stalls completely when tech issues arise; complains instead of adapting.</option>
+                    <option>Escalates immediately without checking notes; shuts down when overwhelmed.</option>
+                    <option>Rambles/unclear messaging; uses inappropriate or overly casual tone.</option>
+                    <option>Requires full reteach of old topics; resists or struggles with new tool updates.</option>
+                    <option>Deflects blame to others/systems; misses deadlines without any prior warning.</option>
+                    <option>Zero original input; relies on typing "+1" or "agreed" only.</option>
+                    <option>Talks in a vacuum; ignores previous speaker's points to push own agenda.</option>
+                    <option>Disrupts class flow due to inability to manage basic virtual tools.</option>
+                    <option>Defensive/closed body language (arms crossed, eye rolling).</option>
+                    <option>Leaves workspace messy; discards trash improperly; mistreats equipment.</option>
+                    <option>Freezes up; relies entirely on reading scripts/guides during execution.</option>
+                    <option>Missing in Action. Uncontactable. Did not inform anyone.</option>
+                    <option value="Other">Other — specify below</option>
+                  </select>
+                </div>
+                <div class="field full" id="behaviorReportOtherWrap" style="display:none">
+                  <label>Please specify the behavior</label>
+                  <input id="behaviorReportOther" type="text" placeholder="Describe the specific behavior observed">
+                </div>
+                <div class="field full"><label>Evidence / explanation</label><textarea id="behaviorReportEvidence" rows="4" placeholder="Detail the behavior observed…"></textarea></div>
+                <div class="field full"><label>Evidence file (optional, 8 MB max)</label><input id="behaviorReportFile" type="file"></div>
+                <div class="actions full" style="justify-content:flex-start"><button id="submitBehaviorReportBtn" class="btn green" type="button" onclick="saveBehaviorReport()">Submit report</button><button class="btn secondary" type="button" onclick="resetBehaviorReportForm()">Clear</button></div>
+              </div>
+              <hr style="border:0;border-top:1px solid var(--line);margin:24px 0">
+              <input id="behaviorReportSearch" type="text" placeholder="Search by trainee, category or behavior…" oninput="renderBehaviorReports()" style="width:100%;margin-bottom:16px">
+              <div id="behaviorReportList" class="list"></div>
+            </div>
+          </section>
+
+          <section id="view-instructor-management" class="view">
+            <div class="panel">
+              <div class="panel-header">
+                <div class="icon-box icon-slate"><i data-lucide="shield"></i></div>
+                <div><h2>Instructor Management</h2><p>Instructors added here can sign in to this instructor portal with their Google account.</p></div>
+              </div>
+              <div class="form-grid" style="margin-top:0">
+                <div class="field full">
+                  <label>Add instructors</label>
+                  <div id="newInstructorRows">
+                    <div class="student-add-row">
+                      <input type="text" class="instructor-add-name" placeholder="Full name">
+                      <input type="text" class="instructor-add-email" placeholder="name@example.com">
+                      <button type="button" class="btn small danger" onclick="removeInstructorRow(this)">&times;</button>
+                    </div>
+                  </div>
+                  <button class="btn small secondary" type="button" onclick="addInstructorRow()">+ Add another</button>
+                </div>
+                <div class="field" style="align-self:end"><button id="addInstructorBtn" class="btn green" type="button" onclick="addInstructors()">Add to Instructor List</button></div>
+              </div>
+              <div id="instructorList" class="list" style="margin-top:20px"></div>
+              <div id="inactiveInstructorList" class="list" style="margin-top:20px"></div>
+            </div>
+          </section>
+
         </div>
-        <div id="projectDefinitionList" class="list"></div>
-      </div>
-
-      <div class="panel" style="margin-top:18px">
-        <h2>Assign projects to groups</h2>
-        <p class="muted">The same project definition can be reused while each group receives a different use case, brief, cloud account and presentation order.</p>
-        <div class="form-grid">
-          <div class="field"><label>Group</label><select id="groupProjectGroup"></select></div>
-          <div class="field"><label>Project</label><select id="groupProjectProject"></select></div>
-          <div class="field full"><label>Use case / organisation</label><textarea id="groupProjectUseCase" rows="3" placeholder="e.g. Cymbal Retail — catalogue enrichment and conversational commerce"></textarea></div>
-          <div class="field"><label>Project brief URL</label><input id="groupProjectBriefUrl" type="url" placeholder="https://…"></div>
-          <div class="field"><label>Group trial account</label><input id="groupProjectTrialAccount" type="text" placeholder="group account email"></div>
-          <div class="field"><label>Cloud console URL</label><input id="groupProjectConsoleUrl" type="url" placeholder="https://console.cloud.google.com/…"></div>
-          <div class="field"><label>Presentation order</label><input id="groupProjectPresentationOrder" type="text" placeholder="e.g. 3rd"></div>
-          <div class="field full"><label>Group-specific notes</label><textarea id="groupProjectNotes" rows="3"></textarea></div>
-          <label class="check"><input id="groupProjectActive" type="checkbox" checked>Active assignment</label>
-          <div class="actions full" style="justify-content:flex-start"><button id="saveGroupProjectBtn" class="btn green" onclick="saveGroupProjectAssignment()">Assign project</button><button class="btn secondary" onclick="resetGroupProjectForm()">Clear</button></div>
-        </div>
-        <div id="groupProjectList" class="list"></div>
-      </div>
-
-      <div class="panel" style="margin-top:18px">
-        <h2>Submissions and peer evaluation</h2>
-        <p class="muted">Group submissions are shared across the team. Peer-evaluation records are accepted only when evaluator and evaluatee belong to the same group.</p>
-        <div id="projectSubmissionSummary" class="summary-grid"></div>
-        <div id="projectSubmissionList" class="list"></div>
-      </div>
-    </section>
-
-    <section id="view-weekly-badges" class="view">
-      <div class="panel">
-        <h2>Badges due this week</h2>
-        <p id="badgeWeekText" class="muted">Progress is calculated from the real due-date headers in the Badge Tracker.</p>
-        <div id="weeklyBadgeSummary" class="grid" style="margin-top:16px"></div>
-      </div>
-    </section>
-
-    <section id="view-badges" class="view">
-      <div class="panel">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px">
-          <div><h2>Compact skill badge tracker</h2><p class="muted">The tracker stays inside a fixed scrolling area; names and headers remain pinned.</p></div>
-          <select id="badgeScope" style="width:auto" onchange="renderBadgeMatrix()"><option value="week">This week + overdue</option><option value="all">All badges</option></select>
-        </div>
-        <div id="badgeMatrix" class="scroll compact"></div>
-      </div>
-    </section>
-
-    <section id="view-scores" class="view">
-      <div class="panel">
-        <h2>Mock exam score showcase</h2>
-        <p class="muted">Latest Mock Exam 1 and 2 scores from the connected Badge Tracker and submission history.</p>
-        <div id="scoreSummary" class="summary-grid"></div>
-        <div id="scoreTable" class="scroll"></div>
-      </div>
-    </section>
-
-    <section id="view-resources" class="view">
-      <div class="panel">
-        <h2>Schedule weekly resources</h2>
-        <p class="muted">Choose any start date; it is stored as that week’s Monday. Add a link, a file, or both.</p>
-        <input id="resourceId" type="hidden">
-        <div class="form-grid">
-          <div class="field"><label>Week start/date</label><input id="resourceWeekStart" type="date"></div>
-          <div class="field"><label>Course</label><select id="resourceCourseId"><option value="">General / all sessions</option></select></div>
-          <div class="field"><label>Resource title</label><input id="resourceTitle" type="text" placeholder="e.g. Lab guide"></div>
-          <div class="field"><label>URL (optional with file)</label><input id="resourceUrl" type="url" placeholder="https://…"></div>
-          <div class="field full"><label>File upload (8 MB maximum)</label><input id="resourceFile" type="file"></div>
-          <div class="field full"><label>Description</label><textarea id="resourceDescription" rows="3" placeholder="What students should use this for"></textarea></div>
-          <label class="check"><input id="resourcePublished" type="checkbox" checked>Published to students when the week starts</label>
-          <div class="actions" style="justify-content:flex-start"><button class="btn green" onclick="saveWeeklyResource()">Save / schedule</button><button class="btn secondary" onclick="resetResourceForm()">Clear</button></div>
-        </div>
-      </div>
-      <div class="panel" style="margin-top:18px">
-        <h2>Resource history</h2>
-        <p class="muted">Scheduled, current, past and archived items stay available for management.</p>
-        <div id="resourceHistory" class="list"></div>
-      </div>
-    </section>
-
-    <section id="view-links" class="view">
-      <div class="panel">
-        <h2>Class feedback links</h2>
-        <p id="classFeedbackLinkHint" class="muted">Choose one class from the class filter. Each class can publish different Feedback Form 1 and Feedback Form 2 links.</p>
-        <div id="classFeedbackLinkEditor" class="list"></div>
-        <button id="saveClassFeedbackLinksBtn" class="btn green" style="margin-top:16px" onclick="saveClassFeedbackLinks()">Save class feedback links</button>
-      </div>
-      <div class="panel" style="margin-top:18px">
-        <h2>Class exam links</h2>
-        <p id="classExamLinkHint" class="muted">Choose one class from the class filter. Each class can publish a different PCA sample, Mock Exam 1 and Mock Exam 2 link.</p>
-        <div id="classExamLinkEditor" class="list"></div>
-        <button id="saveClassExamLinksBtn" class="btn green" style="margin-top:16px" onclick="saveClassExamLinks()">Save class exam links</button>
-      </div>
-    </section>
-  </main>
+      </main>
+    </div>
+  </div>
 
   <script src="config.js"></script>
   <script>
@@ -431,7 +695,7 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       mock_exam_1:['Mock Exam 1','First mock examination.'],
       mock_exam_2:['Mock Exam 2','Second mock examination.']
     };
-    let teacherData = { trainees:[], calendar:{}, weeklyResources:[], resourceHistory:[], portalLinks:{}, classManagement:{ classes:[],memberships:[],badgeCatalog:[],badgeAssignments:[],feedbackLinksByClass:{},examLinksByClass:{},projectGroups:[],projectGroupMembers:[],projects:[],groupProjects:[],projectSubmissions:[],peerEvaluations:[],courses:[],roster:[] }, mockScores:{ rows:[],summary:{} } };
+    let teacherData = { trainees:[], calendar:{}, weeklyResources:[], resourceHistory:[], portalLinks:{}, classManagement:{ classes:[],memberships:[],badgeCatalog:[],badgeAssignments:[],feedbackLinksByClass:{},examLinksByClass:{},projectGroups:[],projectGroupMembers:[],projects:[],groupProjects:[],projectSubmissions:[],peerEvaluations:[],courses:[],roster:[] }, mockScores:{ rows:[],summary:{} }, instructorManagement:{ instructors:[] }, feedbackLogs:[], behaviorReports:[] };
     let activeClassId = 'ALL';
     let teacherMonthKey = new Date().toISOString().slice(0,7);
     let teacherLoadingDepth = 0;
@@ -476,7 +740,11 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         delete_weekly_resource:'Archiving the weekly resource…',
         teacher_acknowledge:'Verifying attendance…',
         send_attendance_emails:'Sending attendance emails…',
-        sync_all_badges:'Syncing all badge profiles…'
+        sync_all_badges:'Syncing all badge profiles…',
+        submit_behavior_report:'Saving the behavior report…',
+        delete_behavior_report:'Removing the behavior report…',
+        repair_tracker_rows:'Syncing Roster to Badge Tracker…',
+        submit_form_status: 'Updating form status…'
       })[action] || 'Saving your changes…';
     }
     function classNameFor(id) {
@@ -525,7 +793,14 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
     }
     function switchTeacherView(view) {
       document.querySelectorAll('.view').forEach(element => element.classList.toggle('active', element.id === `view-${view}`));
-      document.querySelectorAll('.tab').forEach(element => element.classList.toggle('active', element.dataset.view === view));
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        const isActive = btn.dataset.view === view;
+        btn.classList.toggle('active', isActive);
+        if (isActive) {
+          const headerTitle = document.getElementById('headerTitle');
+          if (headerTitle) headerTitle.textContent = btn.querySelector('span').textContent;
+        }
+      });
     }
 
     async function loadData() {
@@ -548,12 +823,16 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         ['projectGroups','projectGroupMembers','projects','groupProjects','projectSubmissions','peerEvaluations'].forEach(key => { teacherData.classManagement[key] = teacherData.classManagement[key] || []; });
         teacherData.resourceHistory = teacherData.resourceHistory || [];
         teacherData.mockScores = teacherData.mockScores || { rows:[],summary:{} };
+        teacherData.instructorManagement = teacherData.instructorManagement || { instructors:[] };
+        teacherData.feedbackLogs = teacherData.feedbackLogs || [];
+        teacherData.behaviorReports = teacherData.behaviorReports || [];
         const cal = teacherData.calendar || {};
         teacherMonthKey = cal.monthKey || teacherMonthKey;
         document.getElementById('weekLabel').textContent = cal.weekStartDisplay ? `${cal.weekStartDisplay} – ${cal.weekEndDisplay}` : 'Current week';
         renderClassFilter();
         renderAll();
         loading.style.display = 'none';
+        lucide.createIcons();
       } catch (error) {
         loading.textContent = `Failed to load: ${error.message}`;
         loading.style.display = 'block';
@@ -581,7 +860,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       if (item) populateClassForm(item);
       else newClass();
       resetCourseForm();
-      resetResourceForm();
       resetProjectGroupForm();
       resetProjectForm();
       resetGroupProjectForm();
@@ -594,11 +872,33 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       renderWeeklyBadges();
       renderBadgeMatrix();
       renderScores();
-      renderResourceManager();
+      renderSessionsAndResources();
       renderClassFeedbackLinkEditor();
       renderClassExamLinkEditor();
+      renderInstructorManagement();
+      renderFeedbackLogs();
+      renderBehaviorReports();
+      renderFormSubmissions();
+      lucide.createIcons();
     }
 
+    function attendanceCheckpointBadge(session, attendanceRecords) {
+      const record = (attendanceRecords || []).find(r => r.courseId === session.courseId) || null;
+      const label = `<span class="badge neutral">${escapeHtml(session.attendanceLabel)} ${escapeHtml(session.attendanceTime)}</span>`;
+      if (!record) {
+        return `<div class="attendance-checkpoint">${label} <span class="badge neutral">Not checked in</span></div>`;
+      }
+      const isNoShowRecord = /^no show$/i.test(record.attendance || '');
+      const isLateRecord = /^late$/i.test(record.attendance || '');
+      let statusBadge;
+      if (isNoShowRecord) statusBadge = '<span class="badge bad">No show</span>';
+      else if (!record.acknowledged) statusBadge = isLateRecord ? '<span class="badge bad">Late · awaiting approval</span>' : '<span class="badge wait">Pending approval</span>';
+      else statusBadge = isLateRecord ? '<span class="badge ok">Approved · Late</span>' : '<span class="badge ok">Approved</span>';
+      const reason = isLateRecord
+        ? `<div class="muted" style="font-size:11px;margin-top:2px">Reason: ${escapeHtml((record.comment || '').trim() || 'No reason given')}</div>`
+        : '';
+      return `<div class="attendance-checkpoint">${label} ${statusBadge}${reason}</div>`;
+    }
     function renderOverview() {
       const data = filteredTrainees();
       const sessions = filteredCourses().filter(item => item.date === (teacherData.calendar || {}).today && !/^cancelled$/i.test(item.portalStatus));
@@ -622,31 +922,35 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         const classChips = (item.classIds || []).map(id => `<span class="badge neutral">${escapeHtml(classNameFor(id))}</span>`).join('');
         const requirementChips = requirements.slice(0,4).map(requirement => `<span class="badge ${requirement.earned ? 'ok' : requirement.status === 'overdue' ? 'bad' : 'wait'}">${requirement.earned ? '✓' : '•'} ${escapeHtml(requirement.name)}</span>`).join('');
         const daySessions = (item.todaySessions || []).filter(event => activeClassId === 'ALL' || event.classId === activeClassId);
-        const schedule = daySessions.map(event => `<span class="badge ${event.lessonMode === 'Virtual' ? 'virtual' : 'face'}">${escapeHtml(event.attendanceLabel)} ${escapeHtml(event.attendanceTime)}</span>`).join('');
         const attendanceRecords = (item.attendanceRecords || []).filter(record => activeClassId === 'ALL' || record.classId === activeClassId);
-        const submittedAttendance = attendanceRecords.filter(record => !/^no show$/i.test(record.attendance || ''));
-        const hasAttendance = Boolean(item.email) && submittedAttendance.length > 0;
-        const isNoShow = attendanceRecords.some(record => /^no show$/i.test(record.attendance || '')) && !hasAttendance;
-        const isAcknowledged = hasAttendance && submittedAttendance.every(record => record.acknowledged);
-        let attendance = '<span class="badge neutral">Not checked in</span>';
-        if (!item.email) attendance = '<span class="badge neutral">Tracker only · add to Roster for attendance</span>';
-        else if (!daySessions.length && !hasAttendance) attendance = '<span class="badge neutral">No session today</span>';
-        else if (hasAttendance && !isAcknowledged) attendance = '<span class="badge wait">Pending approval</span>';
-        else if (hasAttendance && isAcknowledged) attendance = '<span class="badge ok">Approved</span>';
-        else if (isNoShow) attendance = '<span class="badge bad">No show</span>';
-        const verify = hasAttendance && !isAcknowledged
+        const anyUnacknowledged = attendanceRecords.some(record => !/^no show$/i.test(record.attendance || '') && !record.acknowledged);
+        let attendanceBlock;
+        if (!item.email) {
+          attendanceBlock = '<span class="badge neutral">Tracker only · add to Roster for attendance</span>';
+        } else if (daySessions.length) {
+          attendanceBlock = daySessions.map(session => attendanceCheckpointBadge(session, attendanceRecords)).join('');
+        } else if (attendanceRecords.length) {
+          attendanceBlock = attendanceRecords.map(record => attendanceCheckpointBadge({
+            attendanceLabel: record.session === 'MC' ? 'MC' : (record.courseId || 'Attendance'),
+            attendanceTime: record.time || '',
+            courseId: record.courseId
+          }, attendanceRecords)).join('');
+        } else {
+          attendanceBlock = '<span class="badge neutral">No session today</span>';
+        }
+        const verify = anyUnacknowledged
           ? `<button class="btn small green" onclick="acknowledgeAttendance('${escapeHtml(item.email)}','${escapeHtml(activeClassId)}')">Verify</button>`
           : '<button class="btn small" disabled>Verify</button>';
         const card = document.createElement('article');
         card.className = 'card';
         card.innerHTML = `
-          <h3>${escapeHtml(item.name)}</h3><div class="muted" style="font-size:12px">${escapeHtml(item.email)}</div>
+          <div class="user-info" style="margin-bottom:8px;"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.email)}</small></div>
           <div>${classChips}</div>
           <div style="margin-top:13px" class="progress"><span style="width:${Number(item.progress)||0}%"></span></div>
           <div class="progress-copy"><span>Due-date progress ${Number(item.progress)||0}%</span><span>${item.completedCount||0}/${item.totalCount||0}</span></div>
           <p style="font-size:12px;color:var(--muted)">This week: ${item.thisWeekCompletedCount||0}/${item.thisWeekTotalCount||0}${item.overdueCount ? ` · <b style="color:var(--red)">${item.overdueCount} overdue</b>` : ' · On track'}</p>
           <div>${requirementChips || '<span class="badge neutral">No badge deadline this week</span>'}</div>
-          <div class="attendance-row"><div>${attendance}<div>${schedule}</div></div>${verify}</div>`;
+          <div class="attendance-row"><div>${attendanceBlock}</div>${verify}</div>`;
         grid.appendChild(card);
       });
       if (!data.length) grid.innerHTML = '<p class="empty">No students match this class and search.</p>';
@@ -665,13 +969,12 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         const row = document.createElement('div');
         row.className = `list-row class-card ${activeClassId === item.id ? 'selected' : ''}`;
         row.onclick = () => { activeClassId = item.id; document.getElementById('classFilter').value = item.id; populateClassForm(item); renderAll(); };
-        row.innerHTML = `<div><strong>${escapeHtml(item.name)}</strong><div class="muted" style="font-size:12px">${escapeHtml(item.id)} · ${count} students · ${escapeHtml(badgeSummary)}</div><div><span class="badge ${item.active ? 'ok' : 'neutral'}">${item.active ? 'Active' : 'Inactive'}</span><span class="badge ${item.portalEnabled ? 'ok' : 'bad'}">Portal ${item.portalEnabled ? 'on' : 'off'}</span></div></div><span class="badge neutral">Edit</span>`;
+        row.innerHTML = `<div class="user-info"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.id)} · ${count} students · ${escapeHtml(badgeSummary)}</small></div><div><span class="badge ${item.active ? 'ok' : 'neutral'}">${item.active ? 'Active' : 'Inactive'}</span><span class="badge ${item.portalEnabled ? 'ok' : 'bad'}">Portal ${item.portalEnabled ? 'on' : 'off'}</span></div><div class="actions" style="flex-direction:column;align-items:flex-end;gap:6px"><span class="badge neutral">Edit</span>${item.id === 'DEFAULT' ? '' : `<button class="btn small danger" type="button" onclick="event.stopPropagation();deleteClassRecord('${escapeHtml(item.id)}','${escapeHtml(item.name)}')">Delete</button>`}</div>`;
         classList.appendChild(row);
       });
       renderClassBadgeManager();
       renderMembership();
       renderTeacherCalendar();
-      renderCourseList();
     }
     function populateClassForm(item) {
       document.getElementById('classId').value = item.id || '';
@@ -684,12 +987,20 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       document.getElementById('classBadgesEnabled').checked = item.badgesEnabled !== false;
       document.getElementById('classResourcesEnabled').checked = item.resourcesEnabled !== false;
       document.getElementById('classMockExamsEnabled').checked = item.mockExamsEnabled !== false;
+      const deleteButton = document.getElementById('deleteClassBtn');
+      deleteButton.disabled = !item.id || item.id === 'DEFAULT';
+      deleteButton.dataset.classId = item.id || '';
+      deleteButton.dataset.className = item.name || '';
     }
     function newClass() {
       ['classId','className'].forEach(id => document.getElementById(id).value = '');
       document.getElementById('classBadgeColumns').value = 'ALL';
       document.getElementById('classId').readOnly = false;
       ['classActive','classPortalEnabled','classAttendanceEnabled','classBadgesEnabled','classResourcesEnabled','classMockExamsEnabled'].forEach(id => document.getElementById(id).checked = true);
+      const deleteButton = document.getElementById('deleteClassBtn');
+      deleteButton.disabled = true;
+      deleteButton.dataset.classId = '';
+      deleteButton.dataset.className = '';
     }
     async function saveClass() {
       try {
@@ -708,6 +1019,23 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         const savedId = document.getElementById('classId').value.trim().toUpperCase().replace(/[^A-Z0-9_-]+/g,'-');
         if (savedId) activeClassId = savedId;
         renderClassFilter();
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    async function deleteClassRecord(targetClassId, targetClassName) {
+      const deleteButton = document.getElementById('deleteClassBtn');
+      const classId = targetClassId || deleteButton.dataset.classId;
+      const className = targetClassName || deleteButton.dataset.className || classNameFor(classId);
+      if (!classId) return;
+      if (classId === 'DEFAULT') return notify('The Default Class cannot be deleted.');
+      if (!confirm(`Permanently delete "${className}"?\n\nThis removes the class along with its student membership, badge requirements, feedback/exam links, class sessions, weekly resources, project groups and project data.\n\nAttendance history stays on record but will no longer show a class name.\n\nThis cannot be undone.`)) return;
+      try {
+        const result = await postAction('delete_class', { classId });
+        teacherData.classManagement = result.data;
+        if (activeClassId === classId) activeClassId = 'ALL';
+        renderClassFilter();
+        newClass();
         renderAll();
         notify(result.message);
       } catch (error) { notify(error.message); }
@@ -819,26 +1147,117 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
     }
     function renderMembership() {
       const host = document.getElementById('memberGrid');
-      const button = document.getElementById('saveMembersBtn');
-      const hint = document.getElementById('membershipHint');
+      const inactiveHost = document.getElementById('inactiveRosterList');
       host.innerHTML = '';
+      inactiveHost.innerHTML = '';
+      const roster = teacherData.classManagement.roster || [];
+      const activeRoster = roster.filter(person => person.active !== false);
+      const inactiveRoster = roster.filter(person => person.active === false);
       if (activeClassId === 'ALL') {
-        hint.textContent = 'Choose one class from the filter to assign students.';
-        button.disabled = true;
+        document.getElementById('membershipHint').textContent = 'Choose one class from the filter to assign students.';
+        document.getElementById('saveMembersBtn').disabled = true;
         host.innerHTML = '<p class="empty">Membership is managed one class at a time.</p>';
-        return;
+      } else {
+        document.getElementById('saveMembersBtn').disabled = false;
+        document.getElementById('membershipHint').textContent = `Students assigned to ${classNameFor(activeClassId)}.`;
+        const membershipRows = (teacherData.classManagement.memberships || []).filter(item => item.classId === activeClassId);
+        activeRoster.forEach(person => {
+          const explicit = membershipRows.find(item => item.email === person.email);
+          const checked = explicit ? explicit.active : activeClassId === 'DEFAULT';
+          const label = document.createElement('label');
+          label.className = 'member';
+          label.innerHTML = `<input type="checkbox" value="${escapeHtml(person.email)}" ${checked ? 'checked' : ''} style="margin-top:4px;"><div class="user-info"><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.email)}</small></div><button type="button" class="btn small danger shrink-0" onclick="event.stopPropagation();deactivateRosterStudent('${escapeHtml(person.email)}','${escapeHtml(person.name)}')">Deactivate</button>`;
+          host.appendChild(label);
+        });
       }
-      button.disabled = false;
-      hint.textContent = `Students assigned to ${classNameFor(activeClassId)}.`;
-      const membershipRows = (teacherData.classManagement.memberships || []).filter(item => item.classId === activeClassId);
-      (teacherData.classManagement.roster || []).forEach(person => {
-        const explicit = membershipRows.find(item => item.email === person.email);
-        const checked = explicit ? explicit.active : activeClassId === 'DEFAULT';
-        const label = document.createElement('label');
-        label.className = 'member';
-        label.innerHTML = `<input type="checkbox" value="${escapeHtml(person.email)}" ${checked ? 'checked' : ''}><span><strong>${escapeHtml(person.name)}</strong><small class="muted" style="display:block">${escapeHtml(person.email)}</small></span>`;
-        host.appendChild(label);
-      });
+      if (inactiveRoster.length) {
+        const heading = document.createElement('h3');
+        heading.style.marginTop = '4px';
+        heading.textContent = 'Inactive students';
+        inactiveHost.appendChild(heading);
+        inactiveRoster.forEach(person => {
+          const row = document.createElement('div');
+          row.className = 'list-row';
+          row.innerHTML = `<div class="user-info"><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.email)}</small></div><div class="actions"><button class="btn small secondary" type="button" onclick="reactivateRosterStudent('${escapeHtml(person.email)}')">Reactivate</button><button class="btn small danger" type="button" onclick="deleteRosterStudent('${escapeHtml(person.email)}','${escapeHtml(person.name)}')">Delete</button></div>`;
+          inactiveHost.appendChild(row);
+        });
+      }
+    }
+    function studentAddRowTemplate_() {
+      return '<div class="student-add-row">'
+        + '<input type="text" class="student-add-name" placeholder="Full name">'
+        + '<input type="text" class="student-add-email" placeholder="name@example.com">'
+        + '<button type="button" class="btn small danger" onclick="removeStudentRow(this)">&times;</button>'
+        + '</div>';
+    }
+    function addStudentRow() {
+      document.getElementById('newStudentRows').insertAdjacentHTML('beforeend', studentAddRowTemplate_());
+    }
+    function removeStudentRow(button) {
+      const container = document.getElementById('newStudentRows');
+      const row = button.closest('.student-add-row');
+      if (container.children.length > 1) {
+        row.remove();
+      } else {
+        row.querySelector('.student-add-name').value = '';
+        row.querySelector('.student-add-email').value = '';
+      }
+    }
+    function resetStudentRows() {
+      document.getElementById('newStudentRows').innerHTML = studentAddRowTemplate_();
+    }
+    async function repairTrackerRows() {
+      if (!confirm('Scan the Roster and add missing Badge Tracker rows?')) return;
+      try {
+        const result = await postAction('repair_tracker_rows');
+        notify(result.message);
+        await loadData();
+      } catch (error) { notify(error.message); }
+    }
+    async function addRosterStudent() {
+      const students = Array.from(document.querySelectorAll('#newStudentRows .student-add-row')).map(function (row) {
+        return {
+          studentName: row.querySelector('.student-add-name').value.trim(),
+          studentEmail: row.querySelector('.student-add-email').value.trim()
+        };
+      }).filter(function (item) { return item.studentName || item.studentEmail; });
+      if (!students.length) return notify('Enter at least one student name and email.');
+      const button = document.getElementById('addRosterStudentBtn');
+      button.disabled = true;
+      try {
+        const result = await postAction('add_roster_students', { students: students });
+        teacherData.classManagement = result.data;
+        resetStudentRows();
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+      finally { button.disabled = false; }
+    }
+    async function deactivateRosterStudent(email, name) {
+      if (!confirm(`Deactivate ${name}? They'll be hidden from active views, but their attendance and badge history stay intact. You can reactivate them anytime.`)) return;
+      try {
+        const result = await postAction('set_roster_active', { studentEmail: email, active: false });
+        teacherData.classManagement = result.data;
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    async function reactivateRosterStudent(email) {
+      try {
+        const result = await postAction('set_roster_active', { studentEmail: email, active: true });
+        teacherData.classManagement = result.data;
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    async function deleteRosterStudent(email, name) {
+      if (!confirm(`Permanently delete ${name} from the Roster?\n\nThis cannot be undone. Attendance and badge history tied to this email will remain on record, but the trainee will no longer appear anywhere in the portal.`)) return;
+      try {
+        const result = await postAction('delete_roster_student', { studentEmail: email });
+        teacherData.classManagement = result.data;
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
     }
     async function saveClassMembers() {
       if (activeClassId === 'ALL') return notify('Choose one class first.');
@@ -914,7 +1333,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       document.getElementById('projectPresentationMinutes').value = 30;
       document.getElementById('projectQaMinutes').value = 10;
       document.getElementById('projectPublished').checked = true;
-      document.getElementById('projectPeerEvaluation').checked = true;
     }
     function editProjectDefinition(projectId) {
       const item = projectClassRows('projects').find(project => project.id === projectId);
@@ -931,7 +1349,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       document.getElementById('projectPresentationMinutes').value = item.presentationMinutes || 0;
       document.getElementById('projectQaMinutes').value = item.qaMinutes || 0;
       document.getElementById('projectPublished').checked = item.published !== false;
-      document.getElementById('projectPeerEvaluation').checked = item.peerEvaluationEnabled !== false;
     }
     async function saveProjectDefinition() {
       if (activeClassId === 'ALL') return notify('Choose one class first.');
@@ -948,8 +1365,7 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
           creditLimit:Number(document.getElementById('projectCreditLimit').value || 0),
           presentationMinutes:Number(document.getElementById('projectPresentationMinutes').value || 0),
           qaMinutes:Number(document.getElementById('projectQaMinutes').value || 0),
-          published:document.getElementById('projectPublished').checked,
-          peerEvaluationEnabled:document.getElementById('projectPeerEvaluation').checked
+          published:document.getElementById('projectPublished').checked
         });
         teacherData.classManagement = result.data;
         resetProjectForm();
@@ -1000,6 +1416,36 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         notify(result.message);
       } catch (error) { notify(error.message); }
     }
+    async function deleteProjectGroup(groupId, groupName) {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      if (!confirm(`Permanently delete "${groupName}"?\n\nThis removes the group along with its student assignments, any projects assigned to it, and their submissions.\n\nThis cannot be undone.`)) return;
+      try {
+        const result = await postAction('delete_project_group', { classId:activeClassId, groupId });
+        teacherData.classManagement = result.data;
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    async function deleteProjectDefinition(projectId, projectName) {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      if (!confirm(`Permanently delete "${projectName}"?\n\nThis removes the project along with any group assignments and submissions tied to it.\n\nThis cannot be undone.`)) return;
+      try {
+        const result = await postAction('delete_project', { classId:activeClassId, projectId });
+        teacherData.classManagement = result.data;
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    async function deleteGroupProjectAssignment(assignmentId, label) {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      if (!confirm(`Remove the assignment "${label}"?\n\nAny submissions tied to it will also be removed.\n\nThis cannot be undone.`)) return;
+      try {
+        const result = await postAction('delete_group_project', { classId:activeClassId, assignmentId });
+        teacherData.classManagement = result.data;
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
     function renderProjectManager() {
       const hint = document.getElementById('projectAdminHint');
       if (!hint) return;
@@ -1026,13 +1472,12 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       const projects = projectClassRows('projects');
       const groupProjects = projectClassRows('groupProjects');
       const submissions = projectClassRows('projectSubmissions');
-      const evaluations = projectClassRows('peerEvaluations');
       const memberByEmail = Object.fromEntries(members.map(item => [item.email,item]));
       groups.forEach(item => {
         const count = members.filter(member => member.groupId === item.id).length;
         const row = document.createElement('div');
         row.className = 'list-row';
-        row.innerHTML = `<div><strong>${escapeHtml(item.name)}</strong><div class="muted" style="font-size:12px">${escapeHtml(item.id)} · ${count} students</div><span class="badge ${item.active ? 'ok' : 'neutral'}">${item.active ? 'Active' : 'Inactive'}</span></div><button class="btn small secondary" type="button">Edit</button>`;
+        row.innerHTML = `<div class="user-info"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.id)} · ${count} students</small></div><div><span class="badge ${item.active ? 'ok' : 'neutral'}">${item.active ? 'Active' : 'Inactive'}</span></div><div class="actions"><button class="btn small secondary" type="button">Edit</button><button class="btn small danger" type="button" onclick="deleteProjectGroup('${escapeHtml(item.id)}','${escapeHtml(item.name)}')">Delete</button></div>`;
         row.querySelector('button').onclick = () => editProjectGroup(item.id);
         groupList.appendChild(row);
       });
@@ -1046,7 +1491,7 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         const row = document.createElement('div');
         row.className = 'project-assignment-row';
         const current = memberByEmail[person.email];
-        row.innerHTML = `<span><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.email)}</small></span><select class="project-group-assignment" data-email="${escapeHtml(person.email)}" data-name="${escapeHtml(person.name)}"><option value="">No group</option>${activeGroups.map(group => `<option value="${escapeHtml(group.id)}" ${current && current.groupId === group.id ? 'selected' : ''}>${escapeHtml(group.name)}</option>`).join('')}</select><span class="badge ${current ? 'ok' : 'neutral'}">${current ? escapeHtml(current.role || 'Member') : 'Unassigned'}</span>`;
+        row.innerHTML = `<div class="user-info"><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.email)}</small></div><select class="project-group-assignment" data-email="${escapeHtml(person.email)}" data-name="${escapeHtml(person.name)}"><option value="">No group</option>${activeGroups.map(group => `<option value="${escapeHtml(group.id)}" ${current && current.groupId === group.id ? 'selected' : ''}>${escapeHtml(group.name)}</option>`).join('')}</select><span class="badge ${current ? 'ok' : 'neutral'} shrink-0">${current ? escapeHtml(current.role || 'Member') : 'Unassigned'}</span>`;
         assignmentGrid.appendChild(row);
       });
       if (!eligible.length) assignmentGrid.innerHTML = '<p class="empty">Add students to this class before assigning project groups.</p>';
@@ -1054,7 +1499,7 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         const assignments = groupProjects.filter(value => value.projectId === item.id).length;
         const row = document.createElement('div');
         row.className = 'list-row';
-        row.innerHTML = `<div><strong>${escapeHtml(item.name)}</strong><div class="muted" style="font-size:12px">${escapeHtml(item.id)} · ${escapeHtml(item.type)} · Due ${escapeHtml(item.dueDateDisplay || 'not set')} · ${assignments} groups</div><div><span class="badge ${item.published ? 'ok' : 'wait'}">${item.published ? 'Published' : 'Draft'}</span><span class="badge ${item.peerEvaluationEnabled ? 'ok' : 'neutral'}">Peer evaluation ${item.peerEvaluationEnabled ? 'on' : 'off'}</span></div></div><button class="btn small secondary" type="button">Edit</button>`;
+        row.innerHTML = `<div class="user-info"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.id)} · ${escapeHtml(item.type)} · Due ${escapeHtml(item.dueDateDisplay || 'not set')} · ${assignments} groups</small></div><div><span class="badge ${item.published ? 'ok' : 'wait'}">${item.published ? 'Published' : 'Draft'}</span></div><div class="actions"><button class="btn small secondary" type="button">Edit</button><button class="btn small danger" type="button" onclick="deleteProjectDefinition('${escapeHtml(item.id)}','${escapeHtml(item.name)}')">Delete</button></div>`;
         row.querySelector('button').onclick = () => editProjectDefinition(item.id);
         projectList.appendChild(row);
       });
@@ -1065,37 +1510,24 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       const projectById = Object.fromEntries(projects.map(item => [item.id,item]));
       groupProjects.forEach(item => {
         const submissionCount = submissions.filter(value => value.assignmentId === item.assignmentId).length;
-        const evaluationCount = evaluations.filter(value => value.assignmentId === item.assignmentId).length;
         const row = document.createElement('div');
         row.className = 'list-row';
-        row.innerHTML = `<div><strong>${escapeHtml((groupById[item.groupId] || {}).name || item.groupId)} → ${escapeHtml((projectById[item.projectId] || {}).name || item.projectId)}</strong><div class="muted" style="font-size:12px">${escapeHtml(item.useCase || 'No use case entered')}${item.presentationOrder ? ` · Presentation ${escapeHtml(item.presentationOrder)}` : ''}</div><div class="project-stat-grid"><span class="project-stat"><b>${submissionCount}</b>submissions</span><span class="project-stat"><b>${evaluationCount}</b>peer reviews</span><span class="project-stat"><b>${item.active ? 'On' : 'Off'}</b>assignment</span></div></div><button class="btn small secondary" type="button">Edit</button>`;
+        const assignmentLabel = `${(groupById[item.groupId] || {}).name || item.groupId} to ${(projectById[item.projectId] || {}).name || item.projectId}`;
+        row.innerHTML = `<div class="user-info"><strong>${escapeHtml((groupById[item.groupId] || {}).name || item.groupId)} → ${escapeHtml((projectById[item.projectId] || {}).name || item.projectId)}</strong><small>${escapeHtml(item.useCase || 'No use case entered')}${item.presentationOrder ? ` · Presentation ${escapeHtml(item.presentationOrder)}` : ''}</small></div><div class="project-stat-grid"><span class="project-stat"><b>${submissionCount}</b>submissions</span><span class="project-stat"><b>${item.active ? 'On' : 'Off'}</b>assignment</span></div><div class="actions"><button class="btn small secondary" type="button">Edit</button><button class="btn small danger" type="button" onclick="deleteGroupProjectAssignment('${escapeHtml(item.assignmentId)}','${escapeHtml(assignmentLabel)}')">Delete</button></div>`;
         row.querySelector('button').onclick = () => editGroupProjectAssignment(item.assignmentId);
         groupProjectList.appendChild(row);
       });
       if (!groupProjects.length) groupProjectList.innerHTML = '<p class="empty">No projects assigned to groups yet.</p>';
-      summary.innerHTML = `<div class="summary-card"><p class="muted">Active groups</p><strong>${activeGroups.length}</strong></div><div class="summary-card"><p class="muted">Assigned students</p><strong>${members.length}</strong></div><div class="summary-card"><p class="muted">Submissions</p><strong>${submissions.length}</strong></div><div class="summary-card"><p class="muted">Peer evaluations</p><strong>${evaluations.length}</strong></div>`;
+      summary.innerHTML = `<div class="summary-card"><p class="muted">Active groups</p><strong>${activeGroups.length}</strong></div><div class="summary-card"><p class="muted">Assigned students</p><strong>${members.length}</strong></div><div class="summary-card"><p class="muted">Submissions</p><strong>${submissions.length}</strong></div>`;
       submissions.slice(0,20).forEach(item => {
         const assignment = groupProjects.find(value => value.assignmentId === item.assignmentId) || {};
         const row = document.createElement('div');
         row.className = 'list-row';
         const links = [['Submission',item.submissionUrl],['Deck',item.deckUrl],['Demo',item.demoUrl],['Repository',item.repositoryUrl]].filter(value => value[1]).map(value => `<a class="badge neutral" href="${escapeHtml(value[1])}" target="_blank" rel="noopener">${value[0]}</a>`).join('');
-        row.innerHTML = `<div><strong>${escapeHtml((groupById[item.groupId] || {}).name || item.groupId)} · ${escapeHtml((projectById[item.projectId] || {}).name || item.projectId)}</strong><div class="muted" style="font-size:12px">Submitted by ${escapeHtml(item.submittedByName || item.submittedByEmail)} · ${escapeHtml(item.status || 'Submitted')}</div><div>${links || '<span class="badge neutral">No links</span>'}</div></div><span class="badge ok">${escapeHtml(item.submittedAt ? new Date(item.submittedAt).toLocaleDateString('en-SG') : 'Submitted')}</span>`;
+        row.innerHTML = `<div class="user-info"><strong>${escapeHtml((groupById[item.groupId] || {}).name || item.groupId)} · ${escapeHtml((projectById[item.projectId] || {}).name || item.projectId)}</strong><small>Submitted by ${escapeHtml(item.submittedByName || item.submittedByEmail)} · ${escapeHtml(item.status || 'Submitted')}</small><div style="margin-top:8px;">${links || '<span class="badge neutral">No links</span>'}</div></div><span class="badge ok">${escapeHtml(item.submittedAt ? new Date(item.submittedAt).toLocaleDateString('en-SG') : 'Submitted')}</span>`;
         submissionList.appendChild(row);
       });
       if (!submissions.length) submissionList.innerHTML = '<p class="empty">No group submissions have been recorded yet.</p>';
-      if (evaluations.length) {
-        const heading = document.createElement('h3');
-        heading.style.marginTop = '22px';
-        heading.textContent = 'Recent peer evaluations';
-        submissionList.appendChild(heading);
-        evaluations.slice().sort((left,right) => (new Date(right.updatedAt).getTime() || 0) - (new Date(left.updatedAt).getTime() || 0)).slice(0,20).forEach(item => {
-          const average = [item.contribution,item.collaboration,item.communication,item.reliability,item.technicalContribution].reduce((sum,value) => sum + Number(value || 0),0) / 5;
-          const row = document.createElement('div');
-          row.className = 'list-row';
-          row.innerHTML = `<div><strong>${escapeHtml(item.evaluatorName || item.evaluatorEmail)} → ${escapeHtml(item.evaluateeName || item.evaluateeEmail)}</strong><div class="muted" style="font-size:12px">${escapeHtml((groupById[item.groupId] || {}).name || item.groupId)} · ${escapeHtml((projectById[item.projectId] || {}).name || item.projectId)}</div>${item.comments ? `<p style="margin:7px 0 0;font-size:12px">${escapeHtml(item.comments)}</p>` : ''}</div><span class="badge ${average >= 4 ? 'ok' : average >= 3 ? 'wait' : 'bad'}">${average.toFixed(1)} / 5</span>`;
-          submissionList.appendChild(row);
-        });
-      }
     }
 
     function localDateKey(date) {
@@ -1137,10 +1569,32 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       }
     }
     function applySessionDefaults() {
-      const morning = document.getElementById('courseSession').value === 'Morning';
-      document.getElementById('courseAttendanceTime').value = morning ? '09:00' : '13:00';
-      document.getElementById('courseOpens').value = morning ? '08:30' : '12:30';
-      document.getElementById('courseAttendanceLabel').value = morning ? 'Lesson start' : 'Lesson end';
+      const session = document.getElementById('courseSession').value;
+      const attendanceTimeInput = document.getElementById('courseAttendanceTime');
+      const opensInput = document.getElementById('courseOpens');
+      const labelInput = document.getElementById('courseAttendanceLabel');
+      const startInput = document.getElementById('courseStart');
+      const bothHint = document.getElementById('courseSessionBothHint');
+      if (session === 'Both') {
+        attendanceTimeInput.value = '09:00';
+        opensInput.value = '08:30';
+        labelInput.value = 'Lesson start';
+        startInput.value = '09:00';
+        attendanceTimeInput.disabled = true;
+        opensInput.disabled = true;
+        labelInput.disabled = true;
+        bothHint.style.display = '';
+      } else {
+        const morning = session === 'Morning';
+        attendanceTimeInput.disabled = false;
+        opensInput.disabled = false;
+        labelInput.disabled = false;
+        attendanceTimeInput.value = morning ? '09:00' : '13:00';
+        opensInput.value = morning ? '08:30' : '12:30';
+        labelInput.value = morning ? 'Lesson start' : 'Lesson end';
+        startInput.value = morning ? '09:00' : '13:00';
+        bothHint.style.display = 'none';
+      }
     }
     function resetCourseForm() {
       document.getElementById('editingCourseId').value = '';
@@ -1152,6 +1606,9 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       document.getElementById('courseStatus').value = 'Published';
       document.getElementById('courseAttendanceEnabled').checked = true;
       applySessionDefaults();
+      document.getElementById('resourceDescription').value = '';
+      document.getElementById('resourcePublished').checked = true;
+      resetResourceLinkRows();
     }
     function editCourse(courseId) {
       const item = (teacherData.classManagement.courses || []).find(course => course.courseId === courseId);
@@ -1177,28 +1634,99 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       renderAll();
       document.getElementById('courseTitle').scrollIntoView({behavior:'smooth',block:'center'});
     }
+    async function collectResourceEntries_() {
+      const rows = Array.from(document.querySelectorAll('#resourceLinkRows .resource-link-row'));
+      const entries = [];
+      for (const row of rows) {
+        const title = row.querySelector('.resource-link-title').value.trim();
+        const url = row.querySelector('.resource-link-url').value.trim();
+        const file = row.querySelector('.resource-link-file').files[0];
+        if (!title && !url && !file) continue;
+        if (!title) throw new Error('Enter a title for each resource link.');
+        if (!url && !file) throw new Error(`Add a URL or file for "${title}".`);
+        if (file && file.size > 8*1024*1024) throw new Error(`"${file.name}" is larger than 8 MB.`);
+        const entry = { title, url };
+        if (file) Object.assign(entry, { fileName: file.name, mimeType: file.type, fileData: await fileAsBase64(file) });
+        entries.push(entry);
+      }
+      return entries;
+    }
+    async function saveResourceEntriesForCourse_(courseIds, weekStart) {
+      const entries = await collectResourceEntries_();
+      if (!entries.length) return 0;
+      const description = document.getElementById('resourceDescription').value;
+      const published = document.getElementById('resourcePublished').checked;
+      let lastResult;
+      for (const courseId of courseIds) {
+        for (const entry of entries) {
+          lastResult = await postAction('save_weekly_resource', Object.assign({}, entry, {
+            classId: activeClassId,
+            resourceId: '',
+            weekStart: weekStart,
+            courseId: courseId,
+            description: description,
+            published: published
+          }));
+        }
+      }
+      if (lastResult) teacherData.resourceHistory = lastResult.data.history || [];
+      return entries.length * courseIds.length;
+    }
     async function saveCourse() {
       if (activeClassId === 'ALL') return notify('Choose a class before saving a session.');
+      const session = document.getElementById('courseSession').value;
+      const baseId = document.getElementById('courseId').value.trim();
+      if (!baseId) return notify('Enter a Course/session ID.');
+      const courseDate = document.getElementById('courseDate').value;
+      const shared = {
+        classId: activeClassId,
+        course: document.getElementById('courseTitle').value,
+        lessonMode: document.getElementById('courseMode').value,
+        date: courseDate,
+        portalStatus: document.getElementById('courseStatus').value,
+        description: document.getElementById('courseDescription').value,
+        attendanceEnabled: document.getElementById('courseAttendanceEnabled').checked
+      };
       try {
-        const result = await postAction('save_course', {
-          classId:activeClassId,
-          courseId:document.getElementById('courseId').value,
-          course:document.getElementById('courseTitle').value,
-          lessonMode:document.getElementById('courseMode').value,
-          date:document.getElementById('courseDate').value,
-          startTime:document.getElementById('courseStart').value,
-          session:document.getElementById('courseSession').value,
-          attendanceTime:document.getElementById('courseAttendanceTime').value,
-          checkInOpens:document.getElementById('courseOpens').value,
-          attendanceLabel:document.getElementById('courseAttendanceLabel').value,
-          portalStatus:document.getElementById('courseStatus').value,
-          description:document.getElementById('courseDescription').value,
-          attendanceEnabled:document.getElementById('courseAttendanceEnabled').checked
-        });
-        teacherData.classManagement = result.data;
+        let savedCourseIds = [];
+        let sessionMessage = '';
+        if (session === 'Both') {
+          const legs = [
+            { suffix:'-AM', session:'Morning', startTime:'09:00', attendanceTime:'09:00', checkInOpens:'08:30', attendanceLabel:'Lesson start' },
+            { suffix:'-PM', session:'Afternoon', startTime:'13:00', attendanceTime:'13:00', checkInOpens:'12:30', attendanceLabel:'Lesson end' }
+          ];
+          let lastResult;
+          for (const leg of legs) {
+            const legCourseId = baseId.endsWith(leg.suffix) ? baseId : baseId + leg.suffix;
+            savedCourseIds.push(legCourseId);
+            lastResult = await postAction('save_course', Object.assign({}, shared, {
+              courseId: legCourseId,
+              startTime: leg.startTime,
+              session: leg.session,
+              attendanceTime: leg.attendanceTime,
+              checkInOpens: leg.checkInOpens,
+              attendanceLabel: leg.attendanceLabel
+            }));
+          }
+          teacherData.classManagement = lastResult.data;
+          sessionMessage = 'Both sessions saved (' + baseId + '-AM and ' + baseId + '-PM).';
+        } else {
+          savedCourseIds = [baseId];
+          const result = await postAction('save_course', Object.assign({}, shared, {
+            courseId: baseId,
+            startTime: document.getElementById('courseStart').value,
+            session: session,
+            attendanceTime: document.getElementById('courseAttendanceTime').value,
+            checkInOpens: document.getElementById('courseOpens').value,
+            attendanceLabel: document.getElementById('courseAttendanceLabel').value
+          }));
+          teacherData.classManagement = result.data;
+          sessionMessage = result.message;
+        }
+        const resourceCount = await saveResourceEntriesForCourse_(savedCourseIds, courseDate);
         resetCourseForm();
         renderAll();
-        notify(result.message);
+        notify(resourceCount ? `${sessionMessage} ${resourceCount} resource(s) attached.` : sessionMessage);
       } catch (error) { notify(error.message); }
     }
     async function archiveCourse(courseId) {
@@ -1210,19 +1738,15 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         notify(result.message);
       } catch (error) { notify(error.message); }
     }
-    function renderCourseList() {
-      const host = document.getElementById('courseList');
-      const courses = filteredCourses().slice().sort((a,b) => b.date.localeCompare(a.date));
-      host.innerHTML = '';
-      courses.slice(0,50).forEach(item => {
-        const row = document.createElement('div');
-        row.className = 'list-row';
-        row.innerHTML = `<div><strong>${escapeHtml(item.course)}</strong><div class="muted" style="font-size:12px">${escapeHtml(item.dateDisplay)} · ${escapeHtml(item.attendanceTime)} · ${escapeHtml(classNameFor(item.classId))}</div><span class="badge ${item.lessonMode === 'Virtual' ? 'virtual' : 'face'}">${escapeHtml(lessonModeLabel(item.lessonMode))}</span><span class="badge ${/^published$/i.test(item.portalStatus) ? 'ok' : /^cancelled$/i.test(item.portalStatus) ? 'bad' : 'neutral'}">${escapeHtml(item.portalStatus)}</span></div><div class="actions"><button class="btn small secondary" onclick="editCourse('${escapeHtml(item.courseId)}')">Edit</button><button class="btn small danger" onclick="archiveCourse('${escapeHtml(item.courseId)}')">Cancel</button></div>`;
-        host.appendChild(row);
-      });
-      if (!courses.length) host.innerHTML = '<p class="empty">No class sessions in this scope.</p>';
+    async function deleteCourseEntry(courseId) {
+      if (!confirm('Permanently delete this class session?\n\nThis removes it entirely — unlike Cancel, this cannot be undone.')) return;
+      try {
+        const result = await postAction('delete_course',{courseId});
+        teacherData.classManagement = result.data;
+        renderAll();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
     }
-
     function weeklyDefinitions(data) {
       const first = data.find(item => Array.isArray(item.requirements) && item.requirements.length);
       if (!first) return [];
@@ -1268,7 +1792,7 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       });
       html += '</tr></thead><tbody>';
       data.forEach(student => {
-        html += `<tr><td><b>${escapeHtml(student.name)}</b><br><span class="muted">${escapeHtml(student.email)}</span></td>`;
+        html += `<tr><td><div class="user-info" style="align-items:flex-start;"><strong>${escapeHtml(student.name)}</strong><small>${escapeHtml(student.email)}</small></div></td>`;
         definitions.forEach(definition => {
           const item = (student.requirements || []).find(requirement => requirement.trackerColumn === definition.trackerColumn) || definition;
           const css = item.earned ? 'matrix-ok' : item.status === 'overdue' ? 'matrix-miss' : 'matrix-future';
@@ -1281,21 +1805,84 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
 
     function renderScores() {
       const rows = (teacherData.mockScores.rows || []).filter(item => activeClassId === 'ALL' || (item.classIds || []).includes(activeClassId));
+      const scoresPca = rows.map(item => item.pca).filter(Number.isFinite);
       const scores1 = rows.map(item => item.mock1).filter(Number.isFinite);
       const scores2 = rows.map(item => item.mock2).filter(Number.isFinite);
       const average = values => values.length ? Math.round(values.reduce((sum,value) => sum+value,0)/values.length*10)/10 : '—';
       const submitted = rows.filter(item => Number.isFinite(item.average)).length;
       document.getElementById('scoreSummary').innerHTML = `
+        <div class="summary-card"><p class="muted">PCA sample avg</p><strong>${average(scoresPca)}</strong></div>
         <div class="summary-card"><p class="muted">Mock 1 average</p><strong>${average(scores1)}</strong></div>
         <div class="summary-card"><p class="muted">Mock 2 average</p><strong>${average(scores2)}</strong></div>
         <div class="summary-card"><p class="muted">Students submitted</p><strong>${submitted}/${rows.length}</strong></div>
         <div class="summary-card"><p class="muted">Highest average</p><strong>${rows.length && Number.isFinite(rows[0].average) ? rows[0].average : '—'}</strong></div>`;
-      let html = '<table><thead><tr><th>Student</th><th>Mock Exam 1</th><th>Mock Exam 2</th><th>Average</th><th>Attempts</th><th>Latest evidence</th></tr></thead><tbody>';
+        
+      const formatScore = (score) => Number.isFinite(score) 
+        ? `<span class="badge ok" style="margin:0; font-size:13px; padding:4px 10px; border-radius:8px;">${score}</span>` 
+        : `<span class="badge neutral" style="margin:0; font-size:13px; padding:4px 10px; border-radius:8px;">—</span>`;
+
+      let html = '<table><thead><tr><th>Student</th><th>PCA Sample Questions</th><th>Mock Exam 1</th><th>Mock Exam 2</th><th>Average</th><th>Attempts</th></tr></thead><tbody>';
       rows.forEach(item => {
-        const evidence = item.latest && item.latest.resultUrl ? `<a href="${escapeHtml(item.latest.resultUrl)}" target="_blank" rel="noopener">Open</a>` : '—';
-        html += `<tr><td><b>${escapeHtml(item.name)}</b><br><span class="muted">${escapeHtml(item.email)}</span></td><td>${Number.isFinite(item.mock1) ? item.mock1 : '—'}</td><td>${Number.isFinite(item.mock2) ? item.mock2 : '—'}</td><td><b>${Number.isFinite(item.average) ? item.average : '—'}</b></td><td>${item.attempts || 0}</td><td>${evidence}</td></tr>`;
+        const avgScore = Number.isFinite(item.average) 
+          ? `<span class="badge face" style="margin:0; font-size:13px; padding:4px 10px; border-radius:8px;">${item.average}</span>` 
+          : `<span class="badge neutral" style="margin:0; font-size:13px; padding:4px 10px; border-radius:8px;">—</span>`;
+          
+        html += `<tr>
+          <td><div class="user-info" style="align-items:flex-start;"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.email)}</small></div></td>
+          <td>${formatScore(item.pca)}</td>
+          <td>${formatScore(item.mock1)}</td>
+          <td>${formatScore(item.mock2)}</td>
+          <td>${avgScore}</td>
+          <td><span class="badge neutral" style="margin:0;">${item.attempts || 0}</span></td>
+        </tr>`;
       });
       document.getElementById('scoreTable').innerHTML = rows.length ? `${html}</tbody></table>` : '<p class="empty">No students in this class.</p>';
+    }
+
+    function renderFormSubmissions() {
+      const rows = (teacherData.trainees || []).filter(item => activeClassId === 'ALL' || (item.classIds || []).includes(activeClassId));
+      let f1Count = 0; let f2Count = 0;
+
+      let html = '<table><thead><tr><th>Student</th><th>Feedback Form 1</th><th>Feedback Form 2</th></tr></thead><tbody>';
+      rows.forEach(item => {
+        const f1 = item.formSubmissions?.feedback_form_1 || false;
+        const f2 = item.formSubmissions?.feedback_form_2 || false;
+        if (f1) f1Count++;
+        if (f2) f2Count++;
+
+        html += `<tr>
+          <td><div class="user-info" style="align-items:flex-start;"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.email)}</small></div></td>
+          <td>
+            <label class="check" style="justify-content:center;">
+              <input type="checkbox" ${f1 ? 'checked' : ''} onchange="toggleTeacherFormStatus('${escapeHtml(item.email)}', 'feedback_form_1', this.checked)">
+              <span class="badge ${f1 ? 'ok' : 'neutral'}">${f1 ? 'Submitted' : 'Pending'}</span>
+            </label>
+          </td>
+          <td>
+            <label class="check" style="justify-content:center;">
+              <input type="checkbox" ${f2 ? 'checked' : ''} onchange="toggleTeacherFormStatus('${escapeHtml(item.email)}', 'feedback_form_2', this.checked)">
+              <span class="badge ${f2 ? 'ok' : 'neutral'}">${f2 ? 'Submitted' : 'Pending'}</span>
+            </label>
+          </td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+
+      document.getElementById('formSubmissionsSummary').innerHTML = `
+        <div class="summary-card"><p class="muted">Form 1 Submitted</p><strong>${f1Count}/${rows.length}</strong></div>
+        <div class="summary-card"><p class="muted">Form 2 Submitted</p><strong>${f2Count}/${rows.length}</strong></div>`;
+      document.getElementById('formSubmissionsTable').innerHTML = rows.length ? html : '<p class="empty">No students found.</p>';
+    }
+
+    async function toggleTeacherFormStatus(email, formKey, status) {
+      try {
+        await postAction('submit_form_status', { studentEmail: email, formKey, status });
+        notify('Status updated.');
+        await loadData();
+      } catch (error) {
+        notify(error.message);
+        renderFormSubmissions();
+      }
     }
 
     function fileAsBase64(file) {
@@ -1306,90 +1893,221 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         reader.readAsDataURL(file);
       });
     }
-    function resetResourceForm() {
-      document.getElementById('resourceId').value = '';
-      ['resourceTitle','resourceUrl','resourceDescription'].forEach(id => document.getElementById(id).value = '');
-      document.getElementById('resourceFile').value = '';
-      document.getElementById('resourcePublished').checked = true;
-      document.getElementById('resourceWeekStart').value = (teacherData.calendar || {}).weekStart || new Date().toISOString().slice(0,10);
+    function resourceLinkRowTemplate_() {
+      return '<div class="resource-link-row">'
+        + '<div class="field"><label>Resource title</label><input type="text" class="resource-link-title" placeholder="e.g. Lab guide"></div>'
+        + '<div class="field"><label>URL (optional with file)</label><input type="url" class="resource-link-url" placeholder="https://…"></div>'
+        + '<div class="field"><label>File (optional, 8 MB max)</label><input type="file" class="resource-link-file"></div>'
+        + '<button type="button" class="btn small danger resource-link-remove" onclick="removeResourceLinkRow(this)">&times;</button>'
+        + '</div>';
     }
-    function renderResourceManager() {
-      const courseSelect = document.getElementById('resourceCourseId');
-      const currentValue = courseSelect.value;
-      courseSelect.innerHTML = '<option value="">General / all sessions</option>';
-      filteredCourses().forEach(item => {
-        const option = document.createElement('option');
-        option.value = item.courseId;
-        option.textContent = `${item.dateDisplay} · ${item.course}`;
-        courseSelect.appendChild(option);
-      });
-      if (Array.from(courseSelect.options).some(option => option.value === currentValue)) courseSelect.value = currentValue;
-      if (!document.getElementById('resourceWeekStart').value) resetResourceForm();
-      const host = document.getElementById('resourceHistory');
-      const resources = (teacherData.resourceHistory || []).filter(item => activeClassId === 'ALL' || item.classId === activeClassId);
-      host.innerHTML = '';
-      resources.forEach(item => {
-        const statusClass = item.scheduleStatus === 'current' ? 'ok' : item.scheduleStatus === 'archived' ? 'bad' : item.scheduleStatus === 'scheduled' ? 'wait' : 'neutral';
-        const row = document.createElement('div');
-        row.className = 'list-row';
-        const fallbackOpen = !item.url && !item.fileUrl && item.openUrl
-          ? `<a class="btn small secondary" href="${escapeHtml(item.openUrl)}" target="_blank" rel="noopener">Open resource</a>`
-          : '';
-        row.innerHTML = `<div><strong>${escapeHtml(item.title)}</strong><div class="muted" style="font-size:12px">${escapeHtml(item.weekStartDisplay || item.weekStart)} · ${escapeHtml(classNameFor(item.classId))} · ${escapeHtml(item.courseId || 'General')}</div><span class="badge ${statusClass}">${escapeHtml(item.scheduleStatus)}</span><span class="badge ${item.published ? 'ok' : 'neutral'}">${item.published ? 'Published' : 'Draft'}</span>${item.url ? '<span class="badge neutral">🔗 Link</span>' : ''}${item.fileName ? `<span class="badge neutral">📎 ${escapeHtml(item.fileName)}</span>` : ''}<p style="margin:7px 0 0;font-size:13px">${escapeHtml(item.description)}</p></div><div class="actions"><button class="btn small secondary" onclick="editResource('${escapeHtml(item.id)}')">Edit</button>${item.url ? `<a class="btn small secondary" href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Open link</a>` : ''}${item.fileUrl ? `<a class="btn small secondary" href="${escapeHtml(item.fileUrl)}" target="_blank" rel="noopener">Open file</a>` : ''}${fallbackOpen}${item.archived ? '' : `<button class="btn small danger" onclick="archiveResource('${escapeHtml(item.id)}')">Archive</button>`}</div>`;
-        host.appendChild(row);
-      });
-      if (!resources.length) host.innerHTML = '<p class="empty">No resource history in this class scope.</p>';
+    function resetResourceLinkRows() {
+      document.getElementById('resourceLinkRows').innerHTML = resourceLinkRowTemplate_();
     }
-    function editResource(id) {
-      const item = (teacherData.resourceHistory || []).find(resource => resource.id === id);
-      if (!item) return;
-      activeClassId = item.classId;
-      document.getElementById('classFilter').value = item.classId;
-      const classItem = selectedClass();
-      if (classItem) populateClassForm(classItem);
-      document.getElementById('resourceId').value = item.id;
-      document.getElementById('resourceWeekStart').value = item.weekStart;
-      document.getElementById('resourceTitle').value = item.title;
-      document.getElementById('resourceUrl').value = item.url;
-      document.getElementById('resourceDescription').value = item.description;
-      document.getElementById('resourcePublished').checked = item.published;
-      renderAll();
-      if (Array.from(document.getElementById('resourceCourseId').options).some(option => option.value === item.courseId)) {
-        document.getElementById('resourceCourseId').value = item.courseId;
+    function addResourceLinkRow() {
+      document.getElementById('resourceLinkRows').insertAdjacentHTML('beforeend', resourceLinkRowTemplate_());
+    }
+    function removeResourceLinkRow(button) {
+      const container = document.getElementById('resourceLinkRows');
+      const row = button.closest('.resource-link-row');
+      if (container.children.length > 1) {
+        row.remove();
+      } else {
+        row.querySelector('.resource-link-title').value = '';
+        row.querySelector('.resource-link-url').value = '';
+        row.querySelector('.resource-link-file').value = '';
       }
-      switchTeacherView('resources');
-      document.getElementById('resourceTitle').scrollIntoView({behavior:'smooth',block:'center'});
     }
-    async function saveWeeklyResource() {
-      if (activeClassId === 'ALL') return notify('Choose one class before scheduling a resource.');
-      const file = document.getElementById('resourceFile').files[0];
-      if (file && file.size > 8*1024*1024) return notify('Resource attachment must be 8 MB or smaller.');
+    function weekKeyForDate_(dateKey) {
+      const parts = String(dateKey || '').split('-').map(Number);
+      if (parts.length !== 3 || !parts[0]) return '';
+      const utcMs = Date.UTC(parts[0], parts[1] - 1, parts[2]);
+      const weekday = new Date(utcMs).getUTCDay();
+      const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
+      const monday = new Date(utcMs + mondayOffset * 86400000);
+      return `${monday.getUTCFullYear()}-${String(monday.getUTCMonth() + 1).padStart(2, '0')}-${String(monday.getUTCDate()).padStart(2, '0')}`;
+    }
+    function formatWeekLabel_(weekKey) {
+      const parts = String(weekKey || '').split('-').map(Number);
+      if (parts.length !== 3 || !parts[0]) return weekKey || 'Unknown week';
+      const start = new Date(parts[0], parts[1] - 1, parts[2]);
+      const end = new Date(start.getTime());
+      end.setDate(end.getDate() + 6);
+      return `${start.toLocaleDateString('en-SG', { day:'numeric', month:'short' })} – ${end.toLocaleDateString('en-SG', { day:'numeric', month:'short', year:'numeric' })}`;
+    }
+    function buildResourceRow_(item) {
+      const statusClass = item.scheduleStatus === 'current' ? 'ok' : item.scheduleStatus === 'archived' ? 'bad' : item.scheduleStatus === 'scheduled' ? 'wait' : 'neutral';
+      const row = document.createElement('div');
+      row.className = 'list-row';
+      row.dataset.resourceRow = item.id;
+      const fallbackOpen = !item.url && !item.fileUrl && item.openUrl
+        ? `<a class="btn small secondary" href="${escapeHtml(item.openUrl)}" target="_blank" rel="noopener">Open resource</a>`
+        : '';
+      row.innerHTML = `<div style="display:flex;gap:10px;align-items:flex-start;flex:1 1 auto;min-width:0"><input type="checkbox" class="resource-select" data-id="${escapeHtml(item.id)}" onchange="updateResourceSelectionCount()" style="margin-top:4px;width:18px;height:18px;flex:0 0 auto"><div class="user-info"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(classNameFor(item.classId))}</small><div style="margin-top:6px;"><span class="badge ${statusClass}">${escapeHtml(item.scheduleStatus)}</span><span class="badge ${item.published ? 'ok' : 'neutral'}">${item.published ? 'Published' : 'Draft'}</span>${item.url ? '<span class="badge neutral">🔗 Link</span>' : ''}${item.fileName ? `<span class="badge neutral">📎 ${escapeHtml(item.fileName)}</span>` : ''}</div><p style="margin:7px 0 0;font-size:13px">${escapeHtml(item.description)}</p></div></div><div class="actions"><button class="btn small secondary" onclick="editResourceInline('${escapeHtml(item.id)}')">Edit</button>${item.url ? `<a class="btn small secondary" href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Open link</a>` : ''}${item.fileUrl ? `<a class="btn small secondary" href="${escapeHtml(item.fileUrl)}" target="_blank" rel="noopener">Open file</a>` : ''}${fallbackOpen}${item.archived ? '' : `<button class="btn small secondary" onclick="archiveResource('${escapeHtml(item.id)}')">Archive</button>`}</div>`;
+      return row;
+    }
+    function renderSessionsAndResources() {
+      const host = document.getElementById('sessionsAndResourcesList');
+      if (!host) return;
+      document.getElementById('courseSelectAll').checked = false;
+      document.getElementById('resourceSelectAll').checked = false;
+      updateCourseSelectionCount();
+      updateResourceSelectionCount();
+      host.innerHTML = '';
+
+      const courses = filteredCourses().slice().sort((a, b) => a.date === b.date ? String(a.attendanceTime).localeCompare(String(b.attendanceTime)) : a.date.localeCompare(b.date));
+      const resources = (teacherData.resourceHistory || []).filter(item => activeClassId === 'ALL' || item.classId === activeClassId);
+      const resourcesByCourseId = {};
+      const generalByWeek = {};
+      resources.forEach(item => {
+        if (item.courseId) {
+          resourcesByCourseId[item.courseId] = resourcesByCourseId[item.courseId] || [];
+          resourcesByCourseId[item.courseId].push(item);
+        } else {
+          const weekKey = item.weekStart || '';
+          generalByWeek[weekKey] = generalByWeek[weekKey] || [];
+          generalByWeek[weekKey].push(item);
+        }
+      });
+
+      const weeks = {};
+      courses.forEach(course => {
+        const weekKey = weekKeyForDate_(course.date);
+        weeks[weekKey] = weeks[weekKey] || { courses: [] };
+        weeks[weekKey].courses.push(course);
+      });
+      Object.keys(generalByWeek).forEach(weekKey => {
+        weeks[weekKey] = weeks[weekKey] || { courses: [] };
+      });
+
+      if (!Object.keys(weeks).length) {
+        host.innerHTML = '<p class="empty">No class sessions or resources in this scope.</p>';
+        return;
+      }
+
+      Object.keys(weeks).sort().reverse().forEach(weekKey => {
+        const week = weeks[weekKey];
+        const weekHeading = document.createElement('h3');
+        weekHeading.style.cssText = 'margin:20px 0 10px;font-size:15px;';
+        weekHeading.textContent = `Week of ${formatWeekLabel_(weekKey)}`;
+        host.appendChild(weekHeading);
+
+        const general = generalByWeek[weekKey] || [];
+        if (general.length) {
+          const generalHeading = document.createElement('p');
+          generalHeading.className = 'muted';
+          generalHeading.style.cssText = 'margin:6px 0;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;';
+          generalHeading.textContent = 'General (not tied to a specific session)';
+          host.appendChild(generalHeading);
+          const generalList = document.createElement('div');
+          generalList.className = 'list';
+          general.forEach(item => generalList.appendChild(buildResourceRow_(item)));
+          host.appendChild(generalList);
+        }
+
+        week.courses.forEach(course => {
+          const card = document.createElement('div');
+          card.className = 'list-row';
+          card.style.cssText = 'flex-direction:column;align-items:stretch;';
+          const top = document.createElement('div');
+          top.style.cssText = 'display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;';
+          top.innerHTML = `<div style="display:flex;gap:10px;align-items:flex-start;flex:1 1 auto;min-width:0"><input type="checkbox" class="course-select" data-id="${escapeHtml(course.courseId)}" onchange="updateCourseSelectionCount()" style="margin-top:4px;width:18px;height:18px;flex:0 0 auto"><div class="user-info"><strong>${escapeHtml(course.course)}</strong><small>${escapeHtml(course.dateDisplay)} · ${escapeHtml(course.attendanceTime)} · ${escapeHtml(classNameFor(course.classId))}</small><div style="margin-top:6px;"><span class="badge ${course.lessonMode === 'Virtual' ? 'virtual' : 'face'}">${escapeHtml(lessonModeLabel(course.lessonMode))}</span><span class="badge ${/^published$/i.test(course.portalStatus) ? 'ok' : /^cancelled$/i.test(course.portalStatus) ? 'bad' : 'neutral'}">${escapeHtml(course.portalStatus)}</span></div></div></div><div class="actions"><button class="btn small secondary" onclick="editCourse('${escapeHtml(course.courseId)}')">Edit</button><button class="btn small secondary" onclick="archiveCourse('${escapeHtml(course.courseId)}')">Cancel</button><button class="btn small danger" onclick="deleteCourseEntry('${escapeHtml(course.courseId)}')">Delete</button></div>`;
+          card.appendChild(top);
+
+          const linkedResources = resourcesByCourseId[course.courseId] || [];
+          if (linkedResources.length) {
+            const resourcesWrap = document.createElement('div');
+            resourcesWrap.style.cssText = 'margin:10px 0 0 28px;display:grid;gap:8px;';
+            linkedResources.forEach(item => resourcesWrap.appendChild(buildResourceRow_(item)));
+            card.appendChild(resourcesWrap);
+          }
+          host.appendChild(card);
+        });
+      });
+    }
+    function toggleAllCourseSelection(checked) {
+      document.querySelectorAll('#sessionsAndResourcesList .course-select').forEach(box => { box.checked = checked; });
+      updateCourseSelectionCount();
+    }
+    function updateCourseSelectionCount() {
+      const count = document.querySelectorAll('#sessionsAndResourcesList .course-select:checked').length;
+      const button = document.getElementById('deleteSelectedCoursesBtn');
+      button.textContent = `Delete selected (${count})`;
+      button.disabled = count === 0;
+    }
+    async function deleteSelectedCourses() {
+      const ids = Array.from(document.querySelectorAll('#sessionsAndResourcesList .course-select:checked')).map(box => box.dataset.id);
+      if (!ids.length) return;
+      if (!confirm(`Permanently delete ${ids.length} class session(s)?\n\nThis cannot be undone.`)) return;
       try {
-        const payload = {
-          classId:activeClassId,
-          resourceId:document.getElementById('resourceId').value,
-          weekStart:document.getElementById('resourceWeekStart').value,
-          courseId:document.getElementById('resourceCourseId').value,
-          title:document.getElementById('resourceTitle').value,
-          url:document.getElementById('resourceUrl').value,
-          description:document.getElementById('resourceDescription').value,
-          published:document.getElementById('resourcePublished').checked
-        };
-        if (file) Object.assign(payload,{fileName:file.name,mimeType:file.type,fileData:await fileAsBase64(file)});
-        const result = await postAction('save_weekly_resource',payload);
-        teacherData.resourceHistory = result.data.history || [];
-        resetResourceForm();
-        renderResourceManager();
+        let lastResult;
+        for (const courseId of ids) {
+          lastResult = await postAction('delete_course', { courseId });
+        }
+        teacherData.classManagement = lastResult.data;
+        renderAll();
+        notify(`${ids.length} class session(s) deleted.`);
+      } catch (error) { notify(error.message); }
+    }
+    function toggleAllResourceSelection(checked) {
+      document.querySelectorAll('#sessionsAndResourcesList .resource-select').forEach(box => { box.checked = checked; });
+      updateResourceSelectionCount();
+    }
+    function updateResourceSelectionCount() {
+      const count = document.querySelectorAll('#sessionsAndResourcesList .resource-select:checked').length;
+      const button = document.getElementById('deleteSelectedResourcesBtn');
+      button.textContent = `Delete selected (${count})`;
+      button.disabled = count === 0;
+    }
+    async function deleteSelectedResources() {
+      const ids = Array.from(document.querySelectorAll('#sessionsAndResourcesList .resource-select:checked')).map(box => box.dataset.id);
+      if (!ids.length) return;
+      if (!confirm(`Permanently delete ${ids.length} resource(s)?\n\nThis cannot be undone.`)) return;
+      try {
+        let lastResult;
+        for (const id of ids) {
+          lastResult = await postAction('delete_weekly_resource_permanently', { resourceId: id });
+        }
+        const otherClasses = (teacherData.resourceHistory || []).filter(item => item.classId !== activeClassId);
+        teacherData.resourceHistory = otherClasses.concat(lastResult.data.history || []);
+        renderSessionsAndResources();
+        notify(`${ids.length} resource(s) deleted.`);
+      } catch (error) { notify(error.message); }
+    }
+    function editResourceInline(id) {
+      const item = (teacherData.resourceHistory || []).find(resource => resource.id === id);
+      const row = document.querySelector(`[data-resource-row="${id}"]`);
+      if (!item || !row) return;
+      row.innerHTML = `<div style="display:grid;gap:8px;flex:1 1 auto;min-width:0"><input type="text" class="inline-edit-title" value="${escapeHtml(item.title)}" placeholder="Title"><input type="url" class="inline-edit-url" value="${escapeHtml(item.url)}" placeholder="https://…"><textarea class="inline-edit-description" rows="2" placeholder="Description">${escapeHtml(item.description)}</textarea><label class="check"><input type="checkbox" class="inline-edit-published" ${item.published ? 'checked' : ''}>Published</label><label style="font-size:12px;color:var(--muted)">Replace file (optional)<input type="file" class="inline-edit-file"></label></div><div class="actions"><button class="btn small green" type="button" onclick="saveResourceInlineEdit('${escapeHtml(id)}')">Save</button><button class="btn small secondary" type="button" onclick="renderSessionsAndResources()">Cancel</button></div>`;
+    }
+    async function saveResourceInlineEdit(id) {
+      const item = (teacherData.resourceHistory || []).find(resource => resource.id === id);
+      const row = document.querySelector(`[data-resource-row="${id}"]`);
+      if (!item || !row) return;
+      const title = row.querySelector('.inline-edit-title').value.trim();
+      const url = row.querySelector('.inline-edit-url').value.trim();
+      const description = row.querySelector('.inline-edit-description').value.trim();
+      const published = row.querySelector('.inline-edit-published').checked;
+      const file = row.querySelector('.inline-edit-file').files[0];
+      if (!title) return notify('Enter a title.');
+      if (file && file.size > 8 * 1024 * 1024) return notify('File must be 8 MB or smaller.');
+      try {
+        const payload = { classId: item.classId, resourceId: id, weekStart: item.weekStart, courseId: item.courseId || '', title, url, description, published };
+        if (file) Object.assign(payload, { fileName: file.name, mimeType: file.type, fileData: await fileAsBase64(file) });
+        const result = await postAction('save_weekly_resource', payload);
+        const otherClasses = (teacherData.resourceHistory || []).filter(r => r.classId !== activeClassId);
+        teacherData.resourceHistory = otherClasses.concat(result.data.history || []);
+        renderSessionsAndResources();
         notify(result.message);
       } catch (error) { notify(error.message); }
     }
     async function archiveResource(resourceId) {
-      if (!confirm('Archive this weekly resource? It will remain in resource history.')) return;
+      if (!confirm('Archive this weekly resource? It will remain visible here as archived.')) return;
       try {
         const result = await postAction('delete_weekly_resource',{resourceId});
         const otherClasses = (teacherData.resourceHistory || []).filter(item => item.classId !== activeClassId);
         teacherData.resourceHistory = otherClasses.concat(result.data.history || []);
-        renderResourceManager();
+        renderSessionsAndResources();
         notify(result.message);
       } catch (error) { notify(error.message); }
     }
@@ -1480,6 +2198,15 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       try { const result = await postAction('teacher_acknowledge',{studentEmail:email,classId:classId||'ALL'}); notify(result.message); await loadData(); }
       catch (error) { notify(error.message); }
     }
+    async function acknowledgeAllAttendance() {
+      const scope = activeClassId === 'ALL' ? 'all classes' : classNameFor(activeClassId);
+      if (!confirm(`Verify every pending check-in today for ${scope}?`)) return;
+      try {
+        const result = await postAction('teacher_acknowledge_all', { classId: activeClassId });
+        notify(result.message);
+        await loadData();
+      } catch (error) { notify(error.message); }
+    }
     async function sendAttendanceEmails() {
       if (!confirm(`Email the attendance link to ${activeClassId === 'ALL' ? 'all registered students' : classNameFor(activeClassId)}?`)) return;
       try { const result = await postAction('send_attendance_emails',{studentPageUrl:STUDENT_PAGE_URL,classId:activeClassId}); notify(result.message); }
@@ -1489,6 +2216,268 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       if (!confirm('Fetch all saved public Google Skills profiles?')) return;
       try { const result = await postAction('sync_all_badges'); notify(result.message); await loadData(); }
       catch (error) { notify(error.message); }
+    }
+
+    function instructorAddRowTemplate_() {
+      return '<div class="student-add-row">'
+        + '<input type="text" class="instructor-add-name" placeholder="Full name">'
+        + '<input type="text" class="instructor-add-email" placeholder="name@example.com">'
+        + '<button type="button" class="btn small danger" onclick="removeInstructorRow(this)">&times;</button>'
+        + '</div>';
+    }
+    function addInstructorRow() {
+      document.getElementById('newInstructorRows').insertAdjacentHTML('beforeend', instructorAddRowTemplate_());
+    }
+    function removeInstructorRow(button) {
+      const container = document.getElementById('newInstructorRows');
+      const row = button.closest('.student-add-row');
+      if (container.children.length > 1) {
+        row.remove();
+      } else {
+        row.querySelector('.instructor-add-name').value = '';
+        row.querySelector('.instructor-add-email').value = '';
+      }
+    }
+    function resetInstructorRows() {
+      document.getElementById('newInstructorRows').innerHTML = instructorAddRowTemplate_();
+    }
+    async function addInstructors() {
+      const instructors = Array.from(document.querySelectorAll('#newInstructorRows .student-add-row')).map(function (row) {
+        return {
+          instructorName: row.querySelector('.instructor-add-name').value.trim(),
+          instructorEmail: row.querySelector('.instructor-add-email').value.trim()
+        };
+      }).filter(function (item) { return item.instructorName || item.instructorEmail; });
+      if (!instructors.length) return notify('Enter at least one instructor name and email.');
+      const button = document.getElementById('addInstructorBtn');
+      button.disabled = true;
+      try {
+        const result = await postAction('add_instructors', { instructors: instructors });
+        teacherData.instructorManagement = result.data;
+        resetInstructorRows();
+        renderInstructorManagement();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+      finally { button.disabled = false; }
+    }
+    async function deactivateInstructor(email, name) {
+      if (!confirm(`Remove portal access for ${name}? They will no longer be able to sign in as an instructor. You can reactivate them anytime.`)) return;
+      try {
+        const result = await postAction('set_instructor_active', { instructorEmail: email, active: false });
+        teacherData.instructorManagement = result.data;
+        renderInstructorManagement();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    async function reactivateInstructor(email) {
+      try {
+        const result = await postAction('set_instructor_active', { instructorEmail: email, active: true });
+        teacherData.instructorManagement = result.data;
+        renderInstructorManagement();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    async function deleteInstructor(email, name) {
+      if (!confirm(`Permanently delete ${name} from the instructor list?\n\nThis cannot be undone.`)) return;
+      try {
+        const result = await postAction('delete_instructor', { instructorEmail: email });
+        teacherData.instructorManagement = result.data;
+        renderInstructorManagement();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    function renderInstructorManagement() {
+      const activeHost = document.getElementById('instructorList');
+      const inactiveHost = document.getElementById('inactiveInstructorList');
+      if (!activeHost || !inactiveHost) return;
+      const data = teacherData.instructorManagement || { instructors: [] };
+      const activeInstructors = (data.instructors || []).filter(item => item.active !== false);
+      const inactiveInstructors = (data.instructors || []).filter(item => item.active === false);
+
+      activeHost.innerHTML = '<h3 style="margin-top:4px">Added instructors</h3>';
+      if (!activeInstructors.length) {
+        activeHost.innerHTML += '<p class="empty">No additional instructors have been added yet.</p>';
+      } else {
+        activeInstructors.forEach(item => {
+          const row = document.createElement('div');
+          row.className = 'list-row';
+          row.innerHTML = `<div class="user-info"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.email)}</small></div><button class="btn small danger" type="button" onclick="deactivateInstructor('${escapeHtml(item.email)}','${escapeHtml(item.name)}')">Deactivate</button>`;
+          activeHost.appendChild(row);
+        });
+      }
+
+      inactiveHost.innerHTML = '';
+      if (inactiveInstructors.length) {
+        const heading = document.createElement('h3');
+        heading.style.marginTop = '4px';
+        heading.textContent = 'Inactive instructors';
+        inactiveHost.appendChild(heading);
+        inactiveInstructors.forEach(item => {
+          const row = document.createElement('div');
+          row.className = 'list-row';
+          row.innerHTML = `<div class="user-info"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.email)}</small></div><div class="actions"><button class="btn small secondary" type="button" onclick="reactivateInstructor('${escapeHtml(item.email)}')">Reactivate</button><button class="btn small danger" type="button" onclick="deleteInstructor('${escapeHtml(item.email)}','${escapeHtml(item.name)}')">Delete</button></div>`;
+          inactiveHost.appendChild(row);
+        });
+      }
+    }
+
+    const FEEDBACK_TYPE_STYLES = {
+      Positive: { badge: 'ok', icon: '🌟' },
+      Negative: { badge: 'bad', icon: '⚠️' },
+      Suggestion: { badge: 'wait', icon: '💡' }
+    };
+    function renderFeedbackLogs() {
+      const summary = document.getElementById('feedbackSummary');
+      const host = document.getElementById('feedbackList');
+      if (!summary || !host) return;
+      const logs = teacherData.feedbackLogs || [];
+      const positiveCount = logs.filter(item => item.type === 'Positive').length;
+      const negativeCount = logs.filter(item => item.type === 'Negative').length;
+      const suggestionCount = logs.filter(item => item.type === 'Suggestion').length;
+      summary.innerHTML = `
+        <div class="summary-card"><p class="muted">Total submissions</p><strong>${logs.length}</strong></div>
+        <div class="summary-card"><p class="muted">🌟 Positive</p><strong>${positiveCount}</strong></div>
+        <div class="summary-card"><p class="muted">⚠️ Concerns</p><strong>${negativeCount}</strong></div>
+        <div class="summary-card"><p class="muted">💡 Suggestions</p><strong>${suggestionCount}</strong></div>`;
+
+      const keyword = (document.getElementById('feedbackSearch').value || '').trim().toLowerCase();
+      const typeFilter = document.getElementById('feedbackTypeFilter').value;
+      const filtered = logs.filter(item => {
+        const matchesType = typeFilter === 'ALL' || item.type === typeFilter;
+        const matchesKeyword = !keyword
+          || (item.message || '').toLowerCase().includes(keyword)
+          || (item.name || '').toLowerCase().includes(keyword)
+          || (item.email || '').toLowerCase().includes(keyword);
+        return matchesType && matchesKeyword;
+      });
+
+      host.innerHTML = '';
+      filtered.forEach(item => {
+        const style = FEEDBACK_TYPE_STYLES[item.type] || FEEDBACK_TYPE_STYLES.Suggestion;
+        const who = item.anonymous
+          ? '<span class="badge neutral">🙈 Anonymous</span>'
+          : `<div class="user-info"><strong>${escapeHtml(item.name)}</strong>${item.email ? `<small>${escapeHtml(item.email)}</small>` : ''}</div>`;
+        const row = document.createElement('div');
+        row.className = 'list-row';
+        row.innerHTML = `<div style="flex:1 1 auto;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="badge ${style.badge}">${style.icon} ${escapeHtml(item.type)}</span>${who}<span class="muted" style="font-size:12px">${escapeHtml(item.createdAt || '')}</span></div><p style="margin:9px 0 0;font-size:14px;white-space:pre-wrap">${escapeHtml(item.message)}</p></div><button class="btn small danger" type="button" onclick="deleteFeedbackLogEntry('${escapeHtml(item.id)}')">Delete</button>`;
+        host.appendChild(row);
+      });
+      if (!filtered.length) {
+        host.innerHTML = logs.length
+          ? '<p class="empty">No feedback matches this search or filter.</p>'
+          : '<p class="empty">No feedback has been submitted yet.</p>';
+      }
+    }
+    async function deleteFeedbackLogEntry(id) {
+      if (!confirm('Delete this feedback entry?\n\nThis cannot be undone.')) return;
+      try {
+        const result = await postAction('delete_feedback_log', { id });
+        teacherData.feedbackLogs = result.data;
+        renderFeedbackLogs();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+
+    function toggleBehaviorReportOther() {
+      const select = document.getElementById('behaviorReportBehavior');
+      const wrap = document.getElementById('behaviorReportOtherWrap');
+      if (!select || !wrap) return;
+      wrap.style.display = select.value === 'Other' ? '' : 'none';
+      if (select.value !== 'Other') document.getElementById('behaviorReportOther').value = '';
+    }
+    function resetBehaviorReportForm() {
+      document.getElementById('behaviorReportDate').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('behaviorReportCategory').value = 'Core Values & Googleyness';
+      document.getElementById('behaviorReportBehavior').value = '';
+      document.getElementById('behaviorReportOther').value = '';
+      document.getElementById('behaviorReportOtherWrap').style.display = 'none';
+      document.getElementById('behaviorReportEvidence').value = '';
+      document.getElementById('behaviorReportFile').value = '';
+      const traineeSelect = document.getElementById('behaviorReportTrainee');
+      if (traineeSelect) traineeSelect.value = '';
+    }
+    function traineesForActiveClass_() {
+      const roster = (teacherData.classManagement.roster || []).filter(person => person.active !== false);
+      if (activeClassId === 'ALL') return roster;
+      const classMemberships = (teacherData.classManagement.memberships || []).filter(item => item.classId === activeClassId);
+      return classMemberships.length
+        ? roster.filter(person => classMemberships.some(item => item.email === person.email && item.active))
+        : (activeClassId === 'DEFAULT' ? roster : []);
+    }
+    function populateBehaviorReportTraineeSelect() {
+      const select = document.getElementById('behaviorReportTrainee');
+      if (!select) return;
+      const current = select.value;
+      const eligible = traineesForActiveClass_();
+      select.innerHTML = '<option value="">-- Choose trainee --</option>' + eligible.map(person => `<option value="${escapeHtml(person.email)}">${escapeHtml(person.name)}</option>`).join('');
+      select.value = Array.from(select.options).some(option => option.value === current) ? current : '';
+    }
+    async function saveBehaviorReport() {
+      const studentEmail = document.getElementById('behaviorReportTrainee').value;
+      if (!studentEmail) return notify('Choose a trainee.');
+      const selectedBehavior = document.getElementById('behaviorReportBehavior').value;
+      if (!selectedBehavior) return notify('Select a behavior from the list.');
+      const otherText = document.getElementById('behaviorReportOther').value.trim();
+      if (selectedBehavior === 'Other' && !otherText) return notify('Describe the behavior in the "Please specify" field.');
+      const behavior = selectedBehavior === 'Other' ? otherText : selectedBehavior;
+      const file = document.getElementById('behaviorReportFile').files[0];
+      if (file && file.size > 8 * 1024 * 1024) return notify('Evidence file must be 8 MB or smaller.');
+      const button = document.getElementById('submitBehaviorReportBtn');
+      button.disabled = true;
+      try {
+        const payload = {
+          studentEmail: studentEmail,
+          date: document.getElementById('behaviorReportDate').value,
+          category: document.getElementById('behaviorReportCategory').value,
+          behavior: behavior,
+          evidence: document.getElementById('behaviorReportEvidence').value.trim()
+        };
+        if (file) Object.assign(payload, { fileName: file.name, mimeType: file.type, fileData: await fileAsBase64(file) });
+        const result = await postAction('submit_behavior_report', payload);
+        teacherData.behaviorReports = result.data;
+        resetBehaviorReportForm();
+        renderBehaviorReports();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+      finally { button.disabled = false; }
+    }
+    async function deleteBehaviorReportEntry(id) {
+      if (!confirm('Delete this behavior report?\n\nThis cannot be undone.')) return;
+      try {
+        const result = await postAction('delete_behavior_report', { id });
+        teacherData.behaviorReports = result.data;
+        renderBehaviorReports();
+        notify(result.message);
+      } catch (error) { notify(error.message); }
+    }
+    function renderBehaviorReports() {
+      const host = document.getElementById('behaviorReportList');
+      if (!host) return;
+      populateBehaviorReportTraineeSelect();
+      const searchInput = document.getElementById('behaviorReportSearch');
+      const keyword = (searchInput ? searchInput.value : '').trim().toLowerCase();
+      const allReports = teacherData.behaviorReports || [];
+      const eligibleEmails = new Set(traineesForActiveClass_().map(person => person.email));
+      const scoped = activeClassId === 'ALL' ? allReports : allReports.filter(item => eligibleEmails.has(item.traineeEmail));
+      const filtered = scoped.filter(item => {
+        return !keyword
+          || (item.traineeName || '').toLowerCase().includes(keyword)
+          || (item.category || '').toLowerCase().includes(keyword)
+          || (item.behavior || '').toLowerCase().includes(keyword);
+      });
+      host.innerHTML = '';
+      filtered.forEach(item => {
+        const fileLink = item.fileUrl ? `<a class="badge neutral" href="${escapeHtml(item.fileUrl)}" target="_blank" rel="noopener">📎 Evidence file</a>` : '';
+        const row = document.createElement('div');
+        row.className = 'list-row';
+        row.innerHTML = `<div style="flex:1 1 auto;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><strong>${escapeHtml(item.traineeName)}</strong><span class="badge wait">${escapeHtml(item.category || 'Uncategorised')}</span><span class="muted" style="font-size:12px">${escapeHtml(item.date || item.createdAt)}</span></div><p style="margin:7px 0 0;font-size:14px;font-weight:750">${escapeHtml(item.behavior)}</p>${item.evidence ? `<p style="margin:5px 0 0;font-size:13px;white-space:pre-wrap">${escapeHtml(item.evidence)}</p>` : ''}<div style="margin-top:7px">${fileLink}<span class="muted" style="font-size:11px;margin-left:6px">Reported by ${escapeHtml(item.reportedBy)}</span></div></div><button class="btn small danger" type="button" onclick="deleteBehaviorReportEntry('${escapeHtml(item.id)}')">Delete</button>`;
+        host.appendChild(row);
+      });
+      if (!filtered.length) {
+        host.innerHTML = scoped.length
+          ? '<p class="empty">No behavior reports match this search.</p>'
+          : '<p class="empty">No behavior reports have been submitted for this class yet.</p>';
+      }
     }
   </script>
   <script type="module" src="teacher-auth.js"></script>

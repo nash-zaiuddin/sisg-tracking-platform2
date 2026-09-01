@@ -4,7 +4,7 @@ const ATTENDANCE_SPREADSHEET_ID = '16JV0UMe4ZUPuKbeEY6mXHD0cgUcgu1FfvhB_f49MQxI'
 const APP_URL = 'https://sisg-project.web.app/';
 const TZ = 'Asia/Singapore';
 const FIREBASE_WEB_API_KEY = 'AIzaSyCebQWOHHA89ANpKWVhhxODkgAG6EkWsjM';
-const TRAINER_EMAILS = ['leo@street-smart.sg', 'nash@street-smart.sg', 'adlina@street-smart.sg', 'eddy@street-smart.sg'];
+const TRAINER_EMAILS = ['nash@street-smart.sg', 'adlina@street-smart.sg', 'eddy@street-smart.sg'];
 const BADGE_FIRST_COLUMN = 5; // E
 const BADGE_LAST_COLUMN = 43; // AQ
 const BADGE_COLUMN_SPEC_DEFAULT = 'ALL';
@@ -17,9 +17,14 @@ const DEFAULT_CLASS_ID = 'DEFAULT';
 const PORTAL_LINK_KEYS = ['feedback_form_1', 'feedback_form_2', 'mock_exam_1', 'mock_exam_2'];
 const CLASS_FEEDBACK_LINK_KEYS = ['feedback_form_1', 'feedback_form_2'];
 const CLASS_EXAM_LINK_KEYS = ['pca_sample', 'mock_exam_1', 'mock_exam_2'];
+// The PCA exam (the real proctored Professional Cloud Architect exam, distinct
+// from the PCA Sample Questions practice score) has exactly these 4 states.
+// Unscheduled is always the default for a student who has not registered yet.
+const PCA_EXAM_STATUSES = ['Unscheduled', 'Scheduled', 'Pass', 'Fail'];
 
 const SHEETS = {
   roster: 'Roster',
+  instructors: 'Instructors',
   attendance: 'Attendance Logs',
   courses: 'Courses',
   exams: 'PCA Exams',
@@ -41,10 +46,14 @@ const SHEETS = {
   projects: 'Projects',
   groupProjects: 'Group Projects',
   projectSubmissions: 'Project Submissions',
-  peerEvaluations: 'Peer Evaluations'
+  peerEvaluations: 'Peer Evaluations',
+  behaviorReports: 'Behavior Reports',
+  formSubmissions: 'Form Submissions'
 };
 
 const HEADERS = {
+  roster: ['Name', 'Email', 'Active'],
+  instructors: ['Name', 'Email', 'Active'],
   attendance: ['Log ID', 'Course ID', 'Student Email', 'Attendance', 'Acknowledged', 'Date', 'Time', 'Comment', 'File URL', 'Created At', 'Class ID', 'Source'],
   exams: ['Email', 'Trainee Name', 'Exam Date', 'Venue', 'Status', 'Voucher Code', 'Updated At'],
   feedback: ['Created At', 'Trainee Name', 'Email', 'Type', 'Message', 'Anonymous'],
@@ -66,7 +75,9 @@ const HEADERS = {
   groupProjects: ['Assignment ID', 'Class ID', 'Group ID', 'Project ID', 'Use Case', 'Brief URL', 'Trial Account', 'Console URL', 'Presentation Order', 'Notes', 'Active', 'Updated At'],
   projectSubmissions: ['Submission ID', 'Assignment ID', 'Project ID', 'Class ID', 'Group ID', 'Submitted By Email', 'Submitted By Name', 'Submission URL', 'Deck URL', 'Demo URL', 'Repository URL', 'Notes', 'Status', 'Submitted At', 'Updated At'],
   peerEvaluations: ['Evaluation ID', 'Assignment ID', 'Project ID', 'Class ID', 'Group ID', 'Evaluator Email', 'Evaluator Name', 'Evaluatee Email', 'Evaluatee Name', 'Contribution', 'Collaboration', 'Communication', 'Reliability', 'Technical Contribution', 'Comments', 'Submitted At', 'Updated At'],
-  courses: ['Course ID', 'Course', 'Description', 'Lesson Mode', 'Date', 'Day', 'Start Time', 'Image', 'Attendance Time', 'Check-in Opens', 'Attendance Enabled', 'Portal Status', 'Attendance Label', 'Class ID']
+  courses: ['Course ID', 'Course', 'Description', 'Lesson Mode', 'Date', 'Day', 'Start Time', 'Image', 'Attendance Time', 'Check-in Opens', 'Attendance Enabled', 'Portal Status', 'Attendance Label', 'Class ID'],
+  behaviorReports: ['Report ID', 'Date', 'Trainee Name', 'Trainee Email', 'Category', 'Behavior', 'Evidence', 'File URL', 'File Name', 'Reported By', 'Created At'],
+  formSubmissions: ['Email', 'Trainee Name', 'Feedback Form 1', 'Feedback Form 2', 'Updated At']
 };
 
 const PORTAL_LINK_DEFAULTS = {
@@ -119,10 +130,28 @@ function firebaseIdentity_(token) {
   return { email: String(body.users[0].email).toLowerCase(), uid: body.users[0].localId };
 }
 
+let _trainerEmailSetCache_ = null;
+function trainerEmailSet_() {
+  if (_trainerEmailSetCache_) return _trainerEmailSetCache_;
+  // TRAINER_EMAILS is seeded into the Instructors sheet the first time
+  // ensureInstructorsSheet_() runs (see below), so the sheet is now the sole
+  // source of truth. This means deactivating one of the original four accounts
+  // in the Instructor Management UI actually takes effect.
+  const dynamic = readInstructorsFull_().filter(function (item) { return item.active; }).map(function (item) { return item.email; });
+  _trainerEmailSetCache_ = new Set(dynamic);
+  return _trainerEmailSetCache_;
+}
+function invalidateTrainerEmailCache_() {
+  _trainerEmailSetCache_ = null;
+}
+function isTrainerEmail_(email) {
+  return trainerEmailSet_().has(String(email || '').trim().toLowerCase());
+}
+
 function requireIdentity_(request, trainerOnly) {
   requireApiKey_(request.apiKey);
   const identity = firebaseIdentity_(request.authToken);
-  if (trainerOnly && TRAINER_EMAILS.indexOf(identity.email) < 0) throw new Error('Trainer access required.');
+  if (trainerOnly && !isTrainerEmail_(identity.email)) throw new Error('Trainer access required.');
   return identity;
 }
 
@@ -138,32 +167,185 @@ function attendance_() {
   return _attendanceSpreadsheet_;
 }
 
+// The main "Badge Tracker" sheet (the big legacy matrix of trainees x badge
+// checkboxes) used to be found purely by tab position — tracker_().getSheets()[0]
+// — which silently breaks if anyone ever reorders or duplicates tabs in the
+// spreadsheet. Looking it up by name instead is far more robust; the
+// position-based lookup is kept only as a last-resort fallback in case the
+// named tab is ever renamed or deleted.
+const BADGE_TRACKER_SHEET_NAME = 'GCP Badges';
+
+function badgeTrackerSheet_() {
+  const spreadsheet = tracker_();
+  const named = spreadsheet.getSheetByName(BADGE_TRACKER_SHEET_NAME);
+  if (named) return named;
+  return spreadsheet.getSheets()[0];
+}
+
+function repairSheetHeaders_(sheet, headers) {
+  if (sheet.getMaxColumns() < headers.length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+  }
+  const currentHeaders = sheet.getLastRow() ? sheet.getRange(1, 1, 1, headers.length).getDisplayValues()[0] : [];
+  const needsHeaders = headers.some(function (header, index) { return currentHeaders[index] !== header; });
+  if (needsHeaders) sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+}
+
 function getOrCreateSheet_(spreadsheet, name, headers) {
   let sheet = spreadsheet.getSheetByName(name);
   if (!sheet) sheet = spreadsheet.insertSheet(name);
-  if (headers) {
-    if (sheet.getMaxColumns() < headers.length) {
-      sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+  if (!headers) return sheet;
+
+  // getOrCreateSheet_ is called once per sheet on every read — roughly 20
+  // times for the trainee-overview response. Each of the live checks below
+  // (getMaxColumns, getLastRow, getRange().getDisplayValues()) is its own
+  // network round-trip, which was silently defeating the batchGet caching
+  // added elsewhere. When a batch cache is warmed, the header row is
+  // already sitting in memory as row 0 of the cached values, so we verify
+  // against that instead of re-fetching it live. Only a genuine mismatch
+  // (rare — happens once, if ever, per sheet) falls back to a live repair.
+  const cached = cachedSheetValues_(sheet);
+  if (cached) {
+    const cachedHeaderRow = cached[0] || [];
+    const headersMatch = headers.every(function (header, index) {
+      return String(cachedHeaderRow[index] || '') === header;
+    });
+    if (!headersMatch) {
+      repairSheetHeaders_(sheet, headers);
+      // Only this one sheet's cache slot is unreliable now — every other
+      // already-cached sheet can keep serving from memory as normal.
+      invalidateSheetCache_(sheet);
     }
-    const currentHeaders = sheet.getLastRow() ? sheet.getRange(1, 1, 1, headers.length).getDisplayValues()[0] : [];
-    const needsHeaders = headers.some(function (header, index) { return currentHeaders[index] !== header; });
-    if (needsHeaders) sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    return sheet;
   }
-  if (headers && sheet.getLastRow() <= 1) {
+
+  repairSheetHeaders_(sheet, headers);
+  if (sheet.getLastRow() <= 1) {
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
   }
   return sheet;
 }
 
+// --- Sheets API batch-read cache (used only for the expensive get_trainees
+// path in doGet) -----------------------------------------------------------
+// SpreadsheetApp normally does one network round-trip per sheet read. The
+// bulk trainee-overview response touches ~20 sheets across 2 spreadsheets,
+// so it pays for ~20 round-trips every time the 20-second cache misses.
+// The Sheets Advanced Service's Values.batchGet can fetch many ranges in a
+// single HTTP call, collapsing that down to 2 calls total (one per
+// spreadsheet). rows_() and dataRangeValues_() transparently check this
+// cache first and fall back to a normal live SpreadsheetApp read whenever
+// the cache hasn't been warmed, a sheet wasn't included in the warm-up, or
+// the Advanced Service isn't enabled — so nothing breaks if this is skipped.
+let _batchSheetCache_ = null; // { [spreadsheetId]: { [sheetName]: rawValues[][] } }
+
+const ATTENDANCE_BATCH_SHEET_KEYS = [
+  'roster', 'instructors', 'attendance', 'courses', 'portalSettings',
+  'weeklyResources', 'classes', 'classMembers', 'classBadges',
+  'classFeedbackLinks', 'classExamLinks', 'projectGroups',
+  'projectGroupMembers', 'projects', 'groupProjects',
+  'projectSubmissions', 'peerEvaluations'
+];
+
+const TRACKER_BATCH_SHEET_KEYS = ['exams', 'examResults', 'badgeSync', 'badges', 'badgeDefinitions', 'profiles', 'formSubmissions'];
+
+function padRow_(row, width) {
+  if (row.length === width) return row;
+  const copy = row.slice(0, width);
+  while (copy.length < width) copy.push('');
+  return copy;
+}
+
+function batchGetValues_(spreadsheetId, sheetNames) {
+  if (!sheetNames.length) return {};
+  const ranges = sheetNames.map(function (name) {
+    return "'" + String(name).replace(/'/g, "''") + "'";
+  });
+  let response;
+  try {
+    response = Sheets.Spreadsheets.Values.batchGet(spreadsheetId, {
+      ranges: ranges,
+      valueRenderOption: 'UNFORMATTED_VALUE',
+      dateTimeRenderOption: 'SERIAL_NUMBER'
+    });
+  } catch (error) {
+    // Advanced Sheets Service not enabled, a missing sheet, or a transient
+    // API error — the caller treats this as "no cache" and reads live.
+    return null;
+  }
+  const result = {};
+  (response.valueRanges || []).forEach(function (valueRange, index) {
+    result[sheetNames[index]] = valueRange.values || [];
+  });
+  return result;
+}
+
+function warmSheetBatchCache_() {
+  try {
+    const attendanceNames = ATTENDANCE_BATCH_SHEET_KEYS.map(function (key) { return SHEETS[key]; });
+    const trackerFixedNames = TRACKER_BATCH_SHEET_KEYS.map(function (key) { return SHEETS[key]; });
+    const trackerMainSheetName = badgeTrackerSheet_().getName();
+    const trackerNames = trackerFixedNames.concat([trackerMainSheetName]);
+
+    const attendanceValues = batchGetValues_(ATTENDANCE_SPREADSHEET_ID, attendanceNames);
+    const trackerValues = batchGetValues_(TRACKER_SPREADSHEET_ID, trackerNames);
+    if (!attendanceValues || !trackerValues) {
+      _batchSheetCache_ = null;
+      return;
+    }
+    _batchSheetCache_ = {};
+    _batchSheetCache_[ATTENDANCE_SPREADSHEET_ID] = attendanceValues;
+    _batchSheetCache_[TRACKER_SPREADSHEET_ID] = trackerValues;
+  } catch (error) {
+    _batchSheetCache_ = null;
+  }
+}
+
+function clearSheetBatchCache_() {
+  _batchSheetCache_ = null;
+}
+
+function invalidateSheetCache_(sheet) {
+  if (!_batchSheetCache_) return;
+  const bucket = _batchSheetCache_[sheet.getParent().getId()];
+  if (!bucket) return;
+  delete bucket[sheet.getName()];
+}
+
+function cachedSheetValues_(sheet) {
+  if (!_batchSheetCache_) return null;
+  const bucket = _batchSheetCache_[sheet.getParent().getId()];
+  if (!bucket) return null;
+  const name = sheet.getName();
+  return Object.prototype.hasOwnProperty.call(bucket, name) ? bucket[name] : null;
+}
+
+function dataRangeValues_(sheet, width) {
+  const cached = cachedSheetValues_(sheet);
+  if (!cached) return sheet.getDataRange().getValues();
+  if (width) return cached.map(function (row) { return padRow_(row, width); });
+  const maxWidth = cached.reduce(function (max, row) { return Math.max(max, row.length); }, 0);
+  return cached.map(function (row) { return padRow_(row, maxWidth); });
+}
+
 function rows_(sheet, width) {
+  const cached = cachedSheetValues_(sheet);
+  if (cached) {
+    return cached.slice(1).map(function (row) { return padRow_(row, width); });
+  }
   const count = sheet.getLastRow() - 1;
   return count > 0 ? sheet.getRange(2, 1, count, width).getValues() : [];
 }
 
 function date_(value) {
-  const parsed = new Date(value);
-  return isNaN(parsed.getTime()) ? '' : Utilities.formatDate(parsed, TZ, 'yyyy-MM-dd');
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    return isNaN(value.getTime()) ? '' : Utilities.formatDate(value, TZ, 'yyyy-MM-dd');
+  }
+  // Handles serial-number and string dates too — this matters once rows_()
+  // can serve data fetched via the Sheets API, which never returns native
+  // Date objects the way SpreadsheetApp.getValues() does.
+  return trackerDueDateKey_(value, value);
 }
 
 function time_(value) {
@@ -171,17 +353,27 @@ function time_(value) {
   return isNaN(parsed.getTime()) ? '' : Utilities.formatDate(parsed, TZ, 'HH:mm:ss');
 }
 
-function getRosterMap() {
-  const sheet = attendance_().getSheetByName(SHEETS.roster);
-  if (!sheet) throw new Error("Create a 'Roster' tab with Name and Email columns.");
-  const values = sheet.getDataRange().getDisplayValues();
-  const result = {};
-  for (let i = 1; i < values.length; i++) {
-    const name = String(values[i][0] || '').trim();
-    const email = String(values[i][1] || '').trim().toLowerCase();
-    if (name && email) result[name] = email;
+function sheetSerialToDate_(value) {
+  if (Object.prototype.toString.call(value) === '[object Date]') return value;
+  if (typeof value === 'number' && value >= 0) {
+    return new Date(Date.UTC(1899, 11, 30) + value * 86400000);
   }
-  return result;
+  return new Date(value);
+}
+
+let _rosterMapCache_ = null;
+function getRosterMap() {
+  if (_rosterMapCache_) return _rosterMapCache_;
+  const sheet = ensureRosterSheet_();
+  const result = {};
+  rows_(sheet, HEADERS.roster.length).forEach(function (row) {
+    const name = String(row[0] || '').trim();
+    const email = String(row[1] || '').trim().toLowerCase();
+    const active = booleanValue_(row[2], true);
+    if (name && email && active) result[name] = email;
+  });
+  _rosterMapCache_ = result;
+  return _rosterMapCache_;
 }
 
 function booleanValue_(value, fallback) {
@@ -201,6 +393,14 @@ function normaliseClassId_(value, allowBlank) {
 
 function normaliseCourseId_(value) {
   return String(value == null ? '' : value).trim();
+}
+
+function normalisePcaExamStatus_(value) {
+  const clean = String(value || '').trim();
+  const match = PCA_EXAM_STATUSES.find(function (status) {
+    return status.toLowerCase() === clean.toLowerCase();
+  });
+  return match || 'Unscheduled';
 }
 
 function columnNumber_(letter) {
@@ -257,6 +457,365 @@ function normaliseBadgeAssignmentMode_(value) {
 }
 
 let _classBadgeSheetCache_ = null;
+let _rosterSheetCache_ = null;
+function ensureRosterSheet_() {
+  if (!_rosterSheetCache_) _rosterSheetCache_ = getOrCreateSheet_(attendance_(), SHEETS.roster, HEADERS.roster);
+  return _rosterSheetCache_;
+}
+
+function readRosterFull_() {
+  const sheet = ensureRosterSheet_();
+  return rows_(sheet, HEADERS.roster.length).map(function (row) {
+    return {
+      name: String(row[0] || '').trim(),
+      email: String(row[1] || '').trim().toLowerCase(),
+      active: booleanValue_(row[2], true)
+    };
+  }).filter(function (item) { return item.name && item.email; });
+}
+
+function ensureTrackerRowForName_(name) {
+  const sheet = badgeTrackerSheet_();
+  // Fetch all of Column B to accurately find the first genuinely empty name slot
+  const nameValues = sheet.getRange(1, 2, sheet.getMaxRows(), 1).getDisplayValues();
+  
+  let alreadyPresent = false;
+  let targetRow = -1;
+
+  for (let i = TRAINEE_FIRST_ROW - 1; i < nameValues.length; i++) {
+    const rowName = String(nameValues[i][0] || '').trim();
+    if (rowName.toLowerCase() === name.trim().toLowerCase()) {
+      alreadyPresent = true;
+      break;
+    }
+    // Mark the first empty row we find in Column B
+    if (!rowName && targetRow === -1) {
+      targetRow = i + 1; // Convert 0-based array index to 1-based row number
+    }
+  }
+
+  if (alreadyPresent) return;
+
+  // If the sheet is completely full with no empty rows, add a new one
+  if (targetRow === -1) {
+    sheet.insertRowAfter(sheet.getMaxRows());
+    targetRow = sheet.getMaxRows();
+  }
+
+  const lastColumn = sheet.getLastColumn();
+  
+  // Copy formatting (checkboxes/backgrounds) from the row immediately above
+  if (targetRow > TRAINEE_FIRST_ROW) {
+    sheet.getRange(targetRow - 1, 1, 1, lastColumn).copyTo(
+      sheet.getRange(targetRow, 1, 1, lastColumn),
+      { formatOnly: true }
+    );
+  }
+  
+  // Insert the name
+  sheet.getRange(targetRow, 2).setValue(name);
+}
+
+function repairMissingTrackerRows_() {
+  const roster = readRosterFull_();
+  let created = 0;
+  const sheet = badgeTrackerSheet_();
+  const existingNames = rows_(sheet, 2).map(function (row) {
+    return String(row[1] || '').trim().toLowerCase();
+  });
+  roster.forEach(function (person) {
+    if (existingNames.indexOf(person.name.trim().toLowerCase()) >= 0) return;
+    ensureTrackerRowForName_(person.name);
+    existingNames.push(person.name.trim().toLowerCase());
+    created++;
+  });
+  _rosterMapCache_ = null;
+  return ok_(
+    readClassManagement_(),
+    created
+      ? created + ' trainee(s) were missing a Badge Tracker row and have been added.'
+      : 'Every trainee in the Roster already has a Badge Tracker row.'
+  );
+}
+
+function addRosterStudent_(data) {
+  const name = String(data.studentName || '').trim().slice(0, 120);
+  const email = String(data.studentEmail || '').trim().toLowerCase();
+  if (!name) throw new Error('Student name is required.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter a valid email address.');
+  const classId = data.classId && data.classId !== 'ALL' ? classById_(data.classId, true).id : '';
+  const sheet = ensureRosterSheet_();
+  const rows = rows_(sheet, HEADERS.roster.length);
+  const existingIndex = rows.findIndex(function (row) { return String(row[1] || '').trim().toLowerCase() === email; });
+  let message;
+  if (existingIndex >= 0) {
+    const wasActive = booleanValue_(rows[existingIndex][2], true);
+    if (wasActive) throw new Error('A trainee with this email already exists in the Roster.');
+    sheet.getRange(existingIndex + 2, 1, 1, 3).setValues([[name, email, true]]);
+    message = name + ' was reactivated in the Roster.';
+  } else {
+    sheet.appendRow([name, email, true]);
+    message = name + ' was added to the Roster.';
+  }
+  ensureTrackerRowForName_(name);
+  _rosterMapCache_ = null;
+  if (classId) {
+    const membersSheet = ensureClassSheets_().members;
+    const memberRows = rows_(membersSheet, HEADERS.classMembers.length);
+    const key = classId + '|' + email;
+    const index = memberRows.findIndex(function (row) {
+      return String(row[0] || '').toUpperCase() + '|' + String(row[1] || '').toLowerCase() === key;
+    });
+    const values = [classId, email, name, true, new Date()];
+    if (index < 0) membersSheet.appendRow(values);
+    else membersSheet.getRange(index + 2, 1, 1, HEADERS.classMembers.length).setValues([values]);
+    message += ' Assigned to the selected class.';
+  }
+  return ok_(readClassManagement_(), message);
+}
+
+function addRosterStudents_(data) {
+  const entries = Array.isArray(data.students) ? data.students : [];
+  if (!entries.length) throw new Error('Add at least one student.');
+  const classId = data.classId && data.classId !== 'ALL' ? classById_(data.classId, true).id : '';
+
+  const sheet = ensureRosterSheet_();
+  const existingRows = rows_(sheet, HEADERS.roster.length);
+  const existingIndexByEmail = {};
+  existingRows.forEach(function (row, index) {
+    existingIndexByEmail[String(row[1] || '').trim().toLowerCase()] = index;
+  });
+
+  const seenInBatch = {};
+  const newRows = [];
+  const classAssignments = [];
+  const errors = [];
+  let added = 0;
+  let reactivated = 0;
+
+  entries.forEach(function (entry, position) {
+    const name = String(entry && entry.studentName || '').trim().slice(0, 120);
+    const email = String(entry && entry.studentEmail || '').trim().toLowerCase();
+    const label = name || email || ('Row ' + (position + 1));
+    if (!name) { errors.push(label + ': name is required.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errors.push(label + ': invalid email address.'); return; }
+    if (seenInBatch[email]) { errors.push(label + ': duplicate email in this list.'); return; }
+    seenInBatch[email] = true;
+
+    const existingIndex = existingIndexByEmail[email];
+    if (existingIndex != null) {
+      const wasActive = booleanValue_(existingRows[existingIndex][2], true);
+      if (wasActive) { errors.push(label + ': already exists in the Roster.'); return; }
+      sheet.getRange(existingIndex + 2, 1, 1, 3).setValues([[name, email, true]]);
+      reactivated++;
+    } else {
+      newRows.push([name, email, true]);
+      added++;
+    }
+    ensureTrackerRowForName_(name);
+    if (classId) classAssignments.push({ email: email, name: name });
+  });
+
+  if (newRows.length) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, HEADERS.roster.length).setValues(newRows);
+  }
+  _rosterMapCache_ = null;
+
+  if (classId && classAssignments.length) {
+    const membersSheet = ensureClassSheets_().members;
+    const memberRows = rows_(membersSheet, HEADERS.classMembers.length);
+    const additions = [];
+    classAssignments.forEach(function (item) {
+      const key = classId + '|' + item.email;
+      const index = memberRows.findIndex(function (row) {
+        return String(row[0] || '').toUpperCase() + '|' + String(row[1] || '').toLowerCase() === key;
+      });
+      const values = [classId, item.email, item.name, true, new Date()];
+      if (index < 0) additions.push(values);
+      else membersSheet.getRange(index + 2, 1, 1, HEADERS.classMembers.length).setValues([values]);
+    });
+    if (additions.length) {
+      membersSheet.getRange(membersSheet.getLastRow() + 1, 1, additions.length, HEADERS.classMembers.length).setValues(additions);
+    }
+  }
+
+  const parts = [];
+  if (added) parts.push(added + (added === 1 ? ' student added' : ' students added'));
+  if (reactivated) parts.push(reactivated + (reactivated === 1 ? ' student reactivated' : ' students reactivated'));
+  if (classId && (added || reactivated)) parts.push('assigned to the selected class');
+  let message = parts.length ? parts.join(', ') + '.' : 'No students were added.';
+  if (errors.length) message += ' Skipped ' + errors.length + ': ' + errors.join(' ');
+  if (!added && !reactivated) throw new Error(message);
+  return ok_(readClassManagement_(), message);
+}
+
+function setRosterActive_(data) {
+  const email = String(data.studentEmail || '').trim().toLowerCase();
+  const active = data.active !== false;
+  if (!email) throw new Error('Student email is required.');
+  const sheet = ensureRosterSheet_();
+  const rows = rows_(sheet, HEADERS.roster.length);
+  const index = rows.findIndex(function (row) { return String(row[1] || '').trim().toLowerCase() === email; });
+  if (index < 0) throw new Error('This trainee was not found in the Roster.');
+  const name = String(rows[index][0] || '').trim();
+  sheet.getRange(index + 2, 3).setValue(active);
+  _rosterMapCache_ = null;
+  return ok_(readClassManagement_(), (name || 'Trainee') + (active ? ' was reactivated.' : ' was deactivated. Existing attendance and badge history are preserved.'));
+}
+
+function deleteRosterStudent_(data) {
+  const email = String(data.studentEmail || '').trim().toLowerCase();
+  if (!email) throw new Error('Student email is required.');
+  const sheet = ensureRosterSheet_();
+  const rows = rows_(sheet, HEADERS.roster.length);
+  const index = rows.findIndex(function (row) { return String(row[1] || '').trim().toLowerCase() === email; });
+  if (index < 0) throw new Error('This trainee was not found in the Roster.');
+  const name = String(rows[index][0] || '').trim();
+  const active = booleanValue_(rows[index][2], true);
+  if (active) throw new Error('Deactivate this trainee before deleting them.');
+  sheet.deleteRow(index + 2);
+
+  const membersSheet = ensureClassSheets_().members;
+  const memberRows = rows_(membersSheet, HEADERS.classMembers.length);
+  for (let index2 = memberRows.length - 1; index2 >= 0; index2--) {
+    if (String(memberRows[index2][1] || '').trim().toLowerCase() === email) membersSheet.deleteRow(index2 + 2);
+  }
+
+  _rosterMapCache_ = null;
+  return ok_(readClassManagement_(), (name || 'Trainee') + ' was permanently deleted from the Roster. Attendance and badge history tied to this email are preserved for records.');
+}
+
+let _instructorsSheetCache_ = null;
+function ensureInstructorsSheet_() {
+  if (_instructorsSheetCache_) return _instructorsSheetCache_;
+  const sheet = getOrCreateSheet_(attendance_(), SHEETS.instructors, HEADERS.instructors);
+  // One-time migration: the portal originally hardcoded these emails in TRAINER_EMAILS
+  // with no way to manage them from the UI. Seed any of them that are still missing
+  // into this sheet as regular, editable rows, so every instructor lives in one place.
+  // Checked per-email (not "is the sheet empty") so a pre-existing, unrelated row in
+  // this sheet can never silently block the seed and lock everyone out.
+  const existingEmails = rows_(sheet, HEADERS.instructors.length).map(function (row) {
+    return String(row[1] || '').trim().toLowerCase();
+  });
+  const missingSeedRows = TRAINER_EMAILS.map(function (email) {
+    const clean = String(email).trim().toLowerCase();
+    const localPart = clean.split('@')[0] || clean;
+    const name = localPart.charAt(0).toUpperCase() + localPart.slice(1);
+    return [name, clean, true];
+  }).filter(function (row) {
+    return existingEmails.indexOf(row[1]) < 0;
+  });
+  if (missingSeedRows.length) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, missingSeedRows.length, HEADERS.instructors.length).setValues(missingSeedRows);
+  }
+  _instructorsSheetCache_ = sheet;
+  return _instructorsSheetCache_;
+}
+
+function readInstructorsFull_() {
+  const sheet = ensureInstructorsSheet_();
+  return rows_(sheet, HEADERS.instructors.length).map(function (row) {
+    return {
+      name: String(row[0] || '').trim(),
+      email: String(row[1] || '').trim().toLowerCase(),
+      active: booleanValue_(row[2], true)
+    };
+  }).filter(function (item) { return item.name && item.email; });
+}
+
+function readInstructorManagement_() {
+  return {
+    instructors: readInstructorsFull_()
+  };
+}
+
+function addInstructors_(data) {
+  const entries = Array.isArray(data.instructors) ? data.instructors : [];
+  if (!entries.length) throw new Error('Add at least one instructor.');
+
+  const sheet = ensureInstructorsSheet_();
+  const existingRows = rows_(sheet, HEADERS.instructors.length);
+  const existingIndexByEmail = {};
+  existingRows.forEach(function (row, index) {
+    existingIndexByEmail[String(row[1] || '').trim().toLowerCase()] = index;
+  });
+
+  const seenInBatch = {};
+  const newRows = [];
+  const errors = [];
+  let added = 0;
+  let reactivated = 0;
+
+  entries.forEach(function (entry, position) {
+    const name = String(entry && entry.instructorName || '').trim().slice(0, 120);
+    const email = String(entry && entry.instructorEmail || '').trim().toLowerCase();
+    const label = name || email || ('Row ' + (position + 1));
+    if (!name) { errors.push(label + ': name is required.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errors.push(label + ': invalid email address.'); return; }
+    if (seenInBatch[email]) { errors.push(label + ': duplicate email in this list.'); return; }
+    seenInBatch[email] = true;
+
+    const existingIndex = existingIndexByEmail[email];
+    if (existingIndex != null) {
+      const wasActive = booleanValue_(existingRows[existingIndex][2], true);
+      if (wasActive) { errors.push(label + ': already exists.'); return; }
+      sheet.getRange(existingIndex + 2, 1, 1, 3).setValues([[name, email, true]]);
+      reactivated++;
+    } else {
+      newRows.push([name, email, true]);
+      added++;
+    }
+  });
+
+  if (newRows.length) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, HEADERS.instructors.length).setValues(newRows);
+  }
+  invalidateTrainerEmailCache_();
+
+  const parts = [];
+  if (added) parts.push(added + (added === 1 ? ' instructor added' : ' instructors added'));
+  if (reactivated) parts.push(reactivated + (reactivated === 1 ? ' instructor reactivated' : ' instructors reactivated'));
+  let message = parts.length ? parts.join(', ') + '.' : 'No instructors were added.';
+  if (errors.length) message += ' Skipped ' + errors.length + ': ' + errors.join(' ');
+  if (!added && !reactivated) throw new Error(message);
+  return ok_(readInstructorManagement_(), message);
+}
+
+function setInstructorActive_(data) {
+  const email = String(data.instructorEmail || '').trim().toLowerCase();
+  const active = data.active !== false;
+  if (!email) throw new Error('Instructor email is required.');
+  const sheet = ensureInstructorsSheet_();
+  const rows = rows_(sheet, HEADERS.instructors.length);
+  const index = rows.findIndex(function (row) { return String(row[1] || '').trim().toLowerCase() === email; });
+  if (index < 0) throw new Error('This instructor was not found.');
+  if (!active) {
+    const otherActiveCount = rows.filter(function (row, i) {
+      return i !== index && booleanValue_(row[2], true);
+    }).length;
+    if (otherActiveCount === 0) throw new Error('At least one active instructor must remain so someone can always sign in.');
+  }
+  const name = String(rows[index][0] || '').trim();
+  sheet.getRange(index + 2, 3).setValue(active);
+  invalidateTrainerEmailCache_();
+  return ok_(readInstructorManagement_(), (name || 'Instructor') + (active ? ' was reactivated and can sign in again.' : ' was deactivated and can no longer sign in to the instructor portal.'));
+}
+
+function deleteInstructor_(data) {
+  const email = String(data.instructorEmail || '').trim().toLowerCase();
+  if (!email) throw new Error('Instructor email is required.');
+  const sheet = ensureInstructorsSheet_();
+  const rows = rows_(sheet, HEADERS.instructors.length);
+  const index = rows.findIndex(function (row) { return String(row[1] || '').trim().toLowerCase() === email; });
+  if (index < 0) throw new Error('This instructor was not found.');
+  const name = String(rows[index][0] || '').trim();
+  const active = booleanValue_(rows[index][2], true);
+  if (active) throw new Error('Deactivate this instructor before deleting them.');
+  sheet.deleteRow(index + 2);
+  invalidateTrainerEmailCache_();
+  return ok_(readInstructorManagement_(), (name || 'Instructor') + ' was permanently removed from the instructor list.');
+}
+
 function ensureClassBadgeSheet_() {
   if (!_classBadgeSheetCache_) _classBadgeSheetCache_ = getOrCreateSheet_(attendance_(), SHEETS.classBadges, HEADERS.classBadges);
   return _classBadgeSheetCache_;
@@ -285,7 +844,7 @@ function readClassBadgeAssignments_(classId) {
 }
 
 function badgeCatalog_() {
-  return trackerBadgeDefinitions_(tracker_().getSheets()[0]).map(function (definition, index) {
+  return trackerBadgeDefinitions_(badgeTrackerSheet_()).map(function (definition, index) {
     return {
       badgeId: definition.badgeId,
       badgeKey: definition.key,
@@ -488,6 +1047,59 @@ function saveClassMembers_(data) {
   return ok_(readClassManagement_(), 'Class membership saved.');
 }
 
+function deleteRowsMatchingClass_(sheet, width, classId, classColumnIndex) {
+  const values = rows_(sheet, width);
+  let removed = 0;
+  for (let index = values.length - 1; index >= 0; index--) {
+    if (normaliseClassId_(values[index][classColumnIndex], true) === classId) {
+      sheet.deleteRow(index + 2);
+      removed++;
+    }
+  }
+  return removed;
+}
+
+function deleteRowsMatching_(sheet, width, predicate) {
+  const values = rows_(sheet, width);
+  let removed = 0;
+  for (let index = values.length - 1; index >= 0; index--) {
+    if (predicate(values[index])) {
+      sheet.deleteRow(index + 2);
+      removed++;
+    }
+  }
+  return removed;
+}
+
+function deleteClass_(data) {
+  const classId = normaliseClassId_(data.classId, false);
+  if (classId === DEFAULT_CLASS_ID) throw new Error('The Default Class cannot be deleted.');
+  const classConfig = classById_(classId, true);
+
+  const classesSheet = ensureClassSheets_().classes;
+  const classRows = rows_(classesSheet, HEADERS.classes.length);
+  const classIndex = classRows.findIndex(function (row) { return normaliseClassId_(row[0], true) === classId; });
+  if (classIndex < 0) throw new Error('Class was not found: ' + classId);
+  classesSheet.deleteRow(classIndex + 2);
+
+  deleteRowsMatchingClass_(ensureClassSheets_().members, HEADERS.classMembers.length, classId, 0);
+  deleteRowsMatchingClass_(ensureClassBadgeSheet_(), HEADERS.classBadges.length, classId, 0);
+  deleteRowsMatchingClass_(ensureClassFeedbackLinks_(), HEADERS.classFeedbackLinks.length, classId, 0);
+  deleteRowsMatchingClass_(ensureClassExamLinks_(), HEADERS.classExamLinks.length, classId, 0);
+  deleteRowsMatchingClass_(ensureCoursesSheet_(), HEADERS.courses.length, classId, 13);
+  deleteRowsMatchingClass_(getOrCreateSheet_(attendance_(), SHEETS.weeklyResources, HEADERS.weeklyResources), HEADERS.weeklyResources.length, classId, 8);
+
+  const projectSheets = ensureProjectSheets_();
+  deleteRowsMatchingClass_(projectSheets.groups, HEADERS.projectGroups.length, classId, 1);
+  deleteRowsMatchingClass_(projectSheets.members, HEADERS.projectGroupMembers.length, classId, 1);
+  deleteRowsMatchingClass_(projectSheets.projects, HEADERS.projects.length, classId, 1);
+  deleteRowsMatchingClass_(projectSheets.assignments, HEADERS.groupProjects.length, classId, 1);
+  deleteRowsMatchingClass_(projectSheets.submissions, HEADERS.projectSubmissions.length, classId, 3);
+  deleteRowsMatchingClass_(projectSheets.evaluations, HEADERS.peerEvaluations.length, classId, 3);
+
+  return ok_(readClassManagement_(), classConfig.name + ' was deleted. Attendance history for this class ID is preserved.');
+}
+
 
 function normaliseProjectEntityId_(value, label) {
   const clean = String(value || '').trim().toUpperCase()
@@ -518,9 +1130,11 @@ function projectMembershipId_(classId, email) {
   return normaliseClassId_(classId, false) + '|' + String(email || '').trim().toLowerCase();
 }
 
+let _projectSheetsCache_ = null;
 function ensureProjectSheets_() {
+  if (_projectSheetsCache_) return _projectSheetsCache_;
   const spreadsheet = attendance_();
-  return {
+  _projectSheetsCache_ = {
     groups: getOrCreateSheet_(spreadsheet, SHEETS.projectGroups, HEADERS.projectGroups),
     members: getOrCreateSheet_(spreadsheet, SHEETS.projectGroupMembers, HEADERS.projectGroupMembers),
     projects: getOrCreateSheet_(spreadsheet, SHEETS.projects, HEADERS.projects),
@@ -528,6 +1142,7 @@ function ensureProjectSheets_() {
     submissions: getOrCreateSheet_(spreadsheet, SHEETS.projectSubmissions, HEADERS.projectSubmissions),
     evaluations: getOrCreateSheet_(spreadsheet, SHEETS.peerEvaluations, HEADERS.peerEvaluations)
   };
+  return _projectSheetsCache_;
 }
 
 function readProjectGroups_(classId, includeInactive) {
@@ -845,6 +1460,80 @@ function saveGroupProject_(data) {
   return ok_(readClassManagement_(), 'Project assigned to group.');
 }
 
+function deleteProjectGroup_(data) {
+  const classId = classById_(data.classId, true).id;
+  const groupId = normaliseProjectEntityId_(data.groupId, 'Group ID');
+  const sheets = ensureProjectSheets_();
+
+  const groupRows = rows_(sheets.groups, HEADERS.projectGroups.length);
+  const groupIndex = groupRows.findIndex(function (row) {
+    return normaliseClassId_(row[1], true) === classId && String(row[2] || '').trim().toUpperCase() === groupId;
+  });
+  if (groupIndex < 0) throw new Error('Project group was not found.');
+  const groupName = String(groupRows[groupIndex][3] || groupId).trim();
+  sheets.groups.deleteRow(groupIndex + 2);
+
+  deleteRowsMatching_(sheets.members, HEADERS.projectGroupMembers.length, function (row) {
+    return normaliseClassId_(row[1], true) === classId && String(row[2] || '').trim().toUpperCase() === groupId;
+  });
+  deleteRowsMatching_(sheets.assignments, HEADERS.groupProjects.length, function (row) {
+    return normaliseClassId_(row[1], true) === classId && String(row[2] || '').trim().toUpperCase() === groupId;
+  });
+  deleteRowsMatching_(sheets.submissions, HEADERS.projectSubmissions.length, function (row) {
+    return normaliseClassId_(row[3], true) === classId && String(row[4] || '').trim().toUpperCase() === groupId;
+  });
+
+  return ok_(readClassManagement_(), groupName + ' was deleted, along with its student assignments and any project assignments and submissions tied to it.');
+}
+
+function deleteProjectDefinition_(data) {
+  const classId = classById_(data.classId, true).id;
+  const projectId = normaliseProjectEntityId_(data.projectId, 'Project ID');
+  const sheets = ensureProjectSheets_();
+
+  const projectRows = rows_(sheets.projects, HEADERS.projects.length);
+  const projectIndex = projectRows.findIndex(function (row) {
+    return normaliseClassId_(row[1], true) === classId && String(row[2] || '').trim().toUpperCase() === projectId;
+  });
+  if (projectIndex < 0) throw new Error('Project was not found.');
+  const projectName = String(projectRows[projectIndex][3] || projectId).trim();
+  sheets.projects.deleteRow(projectIndex + 2);
+
+  deleteRowsMatching_(sheets.assignments, HEADERS.groupProjects.length, function (row) {
+    return normaliseClassId_(row[1], true) === classId && String(row[3] || '').trim().toUpperCase() === projectId;
+  });
+  deleteRowsMatching_(sheets.submissions, HEADERS.projectSubmissions.length, function (row) {
+    return normaliseClassId_(row[3], true) === classId && String(row[2] || '').trim().toUpperCase() === projectId;
+  });
+
+  return ok_(readClassManagement_(), projectName + ' was deleted, along with any group assignments and submissions tied to it.');
+}
+
+function deleteGroupProjectAssignment_(data) {
+  const classId = classById_(data.classId, true).id;
+  const assignmentId = String(data.assignmentId || '').trim();
+  if (!assignmentId) throw new Error('Assignment was not found.');
+  const sheets = ensureProjectSheets_();
+
+  const assignmentRows = rows_(sheets.assignments, HEADERS.groupProjects.length);
+  const assignmentIndex = assignmentRows.findIndex(function (row) {
+    return String(row[0] || '').trim() === assignmentId && normaliseClassId_(row[1], true) === classId;
+  });
+  if (assignmentIndex < 0) throw new Error('Project assignment was not found.');
+  sheets.assignments.deleteRow(assignmentIndex + 2);
+
+  const removedSubmissions = deleteRowsMatching_(sheets.submissions, HEADERS.projectSubmissions.length, function (row) {
+    return String(row[1] || '').trim() === assignmentId;
+  });
+
+  return ok_(
+    readClassManagement_(),
+    removedSubmissions
+      ? 'Project assignment removed, along with ' + removedSubmissions + ' submission(s).'
+      : 'Project assignment removed.'
+  );
+}
+
 function requireStudentProjectAssignment_(data) {
   const person = requirePerson_(data);
   const classConfig = resolveStudentClass_(person.email, data.classId);
@@ -1016,8 +1705,7 @@ function saveBadgeDefinition_(data) {
   if (rawDueDate && !dueDate) throw new Error('Default due date is invalid.');
   const url = normaliseExternalUrl_(data.badgeUrl, true);
 
-  const spreadsheet = tracker_();
-  const trackerSheet = spreadsheet.getSheets()[0];
+  const trackerSheet = badgeTrackerSheet_();
   const catalogSheet = ensureBadgeDefinitionSheet_();
   const sourceDefinitions = badgeDefinitionRows_(false);
   const sourceColumn = sourceDefinitions.length
@@ -1083,7 +1771,7 @@ function archiveBadgeDefinition_(data) {
       assignmentSheet.deleteRow(index + 2);
     }
   }
-  tracker_().getSheets()[0].hideColumns(definition.column);
+  badgeTrackerSheet_().hideColumns(definition.column);
   return ok_(
     readClassManagement_(),
     definition.name + ' was removed from the portal and all class requirements. Existing tracker history was preserved.'
@@ -1202,8 +1890,10 @@ function monthRangeForKey_(monthKey, fallbackDateKey) {
   return { key: clean, start: start, end: dateKeyOffset_(nextStart, -1) };
 }
 
+let _coursesSheetCache_ = null;
 function ensureCoursesSheet_() {
-  return getOrCreateSheet_(attendance_(), SHEETS.courses, HEADERS.courses);
+  if (!_coursesSheetCache_) _coursesSheetCache_ = getOrCreateSheet_(attendance_(), SHEETS.courses, HEADERS.courses);
+  return _coursesSheetCache_;
 }
 
 function courseFromRow_(row, rowNumber) {
@@ -1240,7 +1930,7 @@ function courseFromRow_(row, rowNumber) {
 function readCourseRows_(classId, includeDrafts) {
   const sheet = ensureCoursesSheet_();
   const requested = normaliseClassId_(classId, true);
-  return sheet.getDataRange().getValues().slice(1).map(function (row, index) {
+  return dataRangeValues_(sheet, HEADERS.courses.length).slice(1).map(function (row, index) {
     return courseFromRow_(row, index + 2);
   }).filter(function (course) {
     return course && (!requested || requested === 'ALL' || course.classId === requested)
@@ -1346,9 +2036,6 @@ function saveCourse_(data) {
   const course = String(data.course || '').trim().slice(0, 180);
   const courseDate = trackerDueDateKey_(data.date, data.date);
   if (!courseId || !course || !courseDate) throw new Error('Course ID, title and date are required.');
-  // The live Courses sheet validates column D as "Face to face" or "Virtual".
-  // Accept either portal spelling for backwards compatibility, but always store
-  // the spreadsheet's canonical value so strict data validation cannot reject it.
   const lessonMode = /^virtual$/i.test(String(data.lessonMode || '').trim()) ? 'Virtual' : 'Face to face';
   const startMinutes = timeMinutes_(data.startTime, 540);
   const session = String(data.session || (startMinutes < 720 ? 'Morning' : 'Afternoon'));
@@ -1386,10 +2073,20 @@ function archiveCourse_(data) {
   return ok_(readClassManagement_(), 'Class session cancelled.');
 }
 
+function deleteCourse_(data) {
+  const courseId = String(data.courseId || '').trim();
+  if (!courseId) throw new Error('Class session was not found.');
+  const sheet = ensureCoursesSheet_();
+  const values = rows_(sheet, HEADERS.courses.length);
+  const index = values.findIndex(function (row) { return String(row[0] || '').trim() === courseId; });
+  if (index < 0) throw new Error('This class session was not found — it may have already been removed.');
+  sheet.deleteRow(index + 2);
+  return ok_(readClassManagement_(), 'Class session deleted.');
+}
+
 function readClassManagement_() {
   const classes = readClasses_(true);
   const memberships = readClassMemberships_();
-  const roster = getRosterMap();
   return {
     classes: classes,
     memberships: memberships,
@@ -1404,23 +2101,28 @@ function readClassManagement_() {
     projectSubmissions: readProjectSubmissions_('ALL'),
     peerEvaluations: readPeerEvaluations_('ALL'),
     courses: readCourseRows_('ALL', true),
-    roster: Object.keys(roster).map(function (name) { return { name: name, email: roster[name] }; })
+    roster: readRosterFull_()
   };
 }
 
 function readExam_(person) {
   const sheet = getOrCreateSheet_(tracker_(), SHEETS.exams, HEADERS.exams);
   const row = rows_(sheet, HEADERS.exams.length).find(r => String(r[0]).toLowerCase() === person.email);
-  return row ? { date: row[2], venue: row[3], status: row[4], voucher: row[5] } : { status: 'Not scheduled' };
+  if (!row) return { date: '', venue: '', status: 'Unscheduled', voucher: '' };
+  return { date: row[2] ? date_(row[2]) : '', venue: row[3] || '', status: normalisePcaExamStatus_(row[4]), voucher: row[5] || '' };
 }
 
 function readProfile_(person) {
   const sheet = getOrCreateSheet_(tracker_(), SHEETS.profiles, HEADERS.profiles);
   const row = rows_(sheet, HEADERS.profiles.length).find(r => String(r[0]).toLowerCase() === person.email);
   if (row) return row[2];
-  const legacy = tracker_().getSheets()[0].getDataRange().getValues();
+  // Legacy fallback runs once per trainee; backfilling the Profiles sheet here
+  // means every future call is a fast lookup instead of a full Badge Tracker scan.
+  const legacy = dataRangeValues_(badgeTrackerSheet_());
   const legacyRow = legacy.slice(2).find(r => String(r[1] || '').trim() === person.name);
-  return legacyRow ? legacyRow[2] || '' : '';
+  const url = legacyRow ? legacyRow[2] || '' : '';
+  upsertByEmail_(sheet, HEADERS.profiles.length, person.email, [person.email, person.name, url, new Date()]);
+  return url;
 }
 
 function safeExternalUrl_(value) {
@@ -1437,7 +2139,9 @@ function normaliseExternalUrl_(value, allowBlank) {
   return url;
 }
 
+let _portalSettingsSheetCache_ = null;
 function ensurePortalSettings_() {
+  if (_portalSettingsSheetCache_) return _portalSettingsSheetCache_;
   const sheet = getOrCreateSheet_(attendance_(), SHEETS.portalSettings, HEADERS.portalSettings);
   const existing = rows_(sheet, HEADERS.portalSettings.length).map(function (row) { return String(row[0] || '').trim(); });
   PORTAL_LINK_KEYS.forEach(function (key) {
@@ -1445,7 +2149,8 @@ function ensurePortalSettings_() {
     const defaults = PORTAL_LINK_DEFAULTS[key];
     sheet.appendRow([key, defaults[0], '', defaults[1], true, new Date()]);
   });
-  return sheet;
+  _portalSettingsSheetCache_ = sheet;
+  return _portalSettingsSheetCache_;
 }
 
 function readPortalSettings_(includeDrafts) {
@@ -1494,8 +2199,10 @@ function savePortalLinks_(data) {
   return ok_(readPortalSettings_(true), 'Portal links saved.');
 }
 
+let _classFeedbackLinksSheetCache_ = null;
 function ensureClassFeedbackLinks_() {
-  return getOrCreateSheet_(attendance_(), SHEETS.classFeedbackLinks, HEADERS.classFeedbackLinks);
+  if (!_classFeedbackLinksSheetCache_) _classFeedbackLinksSheetCache_ = getOrCreateSheet_(attendance_(), SHEETS.classFeedbackLinks, HEADERS.classFeedbackLinks);
+  return _classFeedbackLinksSheetCache_;
 }
 
 function readClassFeedbackLinks_(classId, includeDrafts, useGlobalFallback) {
@@ -1581,8 +2288,10 @@ function saveClassFeedbackLinks_(data) {
   return ok_(readClassManagement_(), 'Feedback links saved for ' + classConfig.name + '.');
 }
 
+let _classExamLinksSheetCache_ = null;
 function ensureClassExamLinks_() {
-  return getOrCreateSheet_(attendance_(), SHEETS.classExamLinks, HEADERS.classExamLinks);
+  if (!_classExamLinksSheetCache_) _classExamLinksSheetCache_ = getOrCreateSheet_(attendance_(), SHEETS.classExamLinks, HEADERS.classExamLinks);
+  return _classExamLinksSheetCache_;
 }
 
 function readClassExamLinks_(classId, includeDrafts, useGlobalFallback) {
@@ -1668,11 +2377,19 @@ function saveClassExamLinks_(data) {
   return ok_(readClassManagement_(), 'Exam links saved for ' + classConfig.name + '.');
 }
 
+let _currentWeekRangeCache_ = null;
+function currentWeekRangeCached_() {
+  if (!_currentWeekRangeCache_) {
+    _currentWeekRangeCache_ = weekRangeForDateKey_(date_(new Date()));
+  }
+  return _currentWeekRangeCache_;
+}
+
 function resourceFromRow_(row) {
   const published = booleanValue_(row[6], false);
   const archived = booleanValue_(row[12], false);
   const weekStart = trackerDueDateKey_(row[1], row[1]);
-  const currentWeek = weekRangeForDateKey_(date_(new Date()));
+  const currentWeek = currentWeekRangeCached_();
   let scheduleStatus = 'scheduled';
   if (archived) scheduleStatus = 'archived';
   else if (weekStart < currentWeek.start) scheduleStatus = 'past';
@@ -1782,6 +2499,18 @@ function deleteWeeklyResource_(data) {
   return ok_({ history: readWeeklyResourceHistory_(classId) }, 'Weekly resource archived. It remains in management history.');
 }
 
+function deleteWeeklyResourcePermanently_(data) {
+  const id = String(data.resourceId || '').trim();
+  if (!id) throw new Error('Resource ID is required.');
+  const sheet = getOrCreateSheet_(attendance_(), SHEETS.weeklyResources, HEADERS.weeklyResources);
+  const values = rows_(sheet, HEADERS.weeklyResources.length);
+  const index = values.findIndex(function (row) { return String(row[0] || '') === id; });
+  if (index < 0) throw new Error('This resource was not found — it may have already been removed.');
+  const classId = normaliseClassId_(values[index][8] || DEFAULT_CLASS_ID, true) || DEFAULT_CLASS_ID;
+  sheet.deleteRow(index + 2);
+  return ok_({ history: readWeeklyResourceHistory_(classId) }, 'Resource permanently deleted.');
+}
+
 function readExamResults_(person) {
   const sheet = getOrCreateSheet_(tracker_(), SHEETS.examResults, HEADERS.examResults);
   const results = rows_(sheet, HEADERS.examResults.length).filter(function (row) {
@@ -1828,7 +2557,7 @@ function examMap_() {
   rows_(sheet, HEADERS.exams.length).forEach(function (row) {
     const email = String(row[0] || '').trim().toLowerCase();
     if (!email) return;
-    result[email] = { date: row[2], venue: row[3], status: row[4], voucher: row[5] };
+    result[email] = { date: row[2] ? date_(row[2]) : '', venue: row[3] || '', status: normalisePcaExamStatus_(row[4]), voucher: row[5] || '' };
   });
   return result;
 }
@@ -1841,7 +2570,7 @@ function badgeSyncMap_() {
     if (!email) return;
     result[email] = {
       profileUrl: row[2] || '', badgeCount: Number(row[3]) || 0, matchedCount: Number(row[4]) || 0,
-      lastSynced: row[5] ? Utilities.formatDate(new Date(row[5]), TZ, 'yyyy-MM-dd HH:mm:ss') : '',
+      lastSynced: row[5] ? Utilities.formatDate(sheetSerialToDate_(row[5]), TZ, 'yyyy-MM-dd HH:mm:ss') : '',
       lastSyncedValue: row[5] || '', status: row[6] || 'unknown', message: row[7] || ''
     };
   });
@@ -1871,13 +2600,15 @@ function scoreNumber_(value) {
 
 function buildMockScoreShowcase_(trainees) {
   const rows = (trainees || []).map(function (trainee) {
+    const pca = scoreNumber_(trainee.pcaScore);
     const mock1 = scoreNumber_(trainee.mock1Score);
     const mock2 = scoreNumber_(trainee.mock2Score);
-    const available = [mock1, mock2].filter(function (score) { return score != null; });
+    const available = [pca, mock1, mock2].filter(function (score) { return score != null; });
     return {
       name: trainee.name,
       email: trainee.email,
       classIds: trainee.classIds || [DEFAULT_CLASS_ID],
+      pca: pca,
       mock1: mock1,
       mock2: mock2,
       average: available.length ? Math.round(available.reduce(function (sum, score) { return sum + score; }, 0) / available.length * 10) / 10 : null,
@@ -1896,6 +2627,7 @@ function buildMockScoreShowcase_(trainees) {
       return right.average - left.average;
     }),
     summary: {
+      pcaAverage: averageFor('pca'),
       mock1Average: averageFor('mock1'),
       mock2Average: averageFor('mock2'),
       submittedStudents: rows.filter(function (row) { return row.average != null; }).length,
@@ -1943,8 +2675,9 @@ function trackerColumnValue_(row, oneBasedColumn) {
 }
 
 function submitExamResult_(data) {
-  const person = requireStudentFeature_(data, 'mockExamsEnabled').person;
-  const trackerSheet = tracker_().getSheets()[0];
+  const access = requireStudentFeature_(data, 'mockExamsEnabled');
+  const person = access.person;
+  const trackerSheet = badgeTrackerSheet_();
   const examTypes = examColumnMap_(trackerSheet);
   const type = String(data.examType || '').trim();
   const definition = examTypes[type];
@@ -1962,7 +2695,13 @@ function submitExamResult_(data) {
     'EXAM-' + Utilities.getUuid().slice(0, 8).toUpperCase(), person.email, person.name,
     type, score, 100, resultUrl, String(data.notes || '').trim().slice(0, 500), new Date()
   ]);
-  return ok_(readExamResults_(person), definition.label + ' score submitted.');
+  const baseProgress = readTrackerProgress_()[person.email]
+    || { completedCount: 0, totalCount: 0, progress: 0, badges: [], requirements: [] };
+  const progress = scopeTrackerProgress_(baseProgress, access.classConfig);
+  return ok_({
+    examResults: readExamResults_(person),
+    progress: progress
+  }, definition.label + ' score submitted.');
 }
 
 function columnLetter_(column) {
@@ -1981,7 +2720,11 @@ function trackerDueDateKey_(rawValue, displayValue) {
     return date_(rawValue);
   }
   if (typeof rawValue === 'number' && rawValue >= 20000 && rawValue <= 100000) {
-    return Utilities.formatDate(new Date(Date.UTC(1899, 11, 30) + Math.floor(rawValue) * 86400000), 'UTC', 'yyyy-MM-dd');
+    const utcDate = new Date(Date.UTC(1899, 11, 30) + Math.floor(rawValue) * 86400000);
+    const y = utcDate.getUTCFullYear();
+    const m = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(utcDate.getUTCDate()).padStart(2, '0');
+    return y + '-' + m + '-' + d;
   }
   const text = String(rawValue || displayValue || '').trim();
   let match = text.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/);
@@ -2010,14 +2753,23 @@ function dateKeyValue_(key) {
   return parts.length === 3 ? Date.UTC(parts[0], parts[1] - 1, parts[2]) : NaN;
 }
 
+const MONTH_ABBREVIATIONS_ = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 function dateKeyOffset_(key, days) {
   const value = dateKeyValue_(key);
-  return isNaN(value) ? '' : Utilities.formatDate(new Date(value + days * 86400000), 'UTC', 'yyyy-MM-dd');
+  if (isNaN(value)) return '';
+  const shifted = new Date(value + days * 86400000);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(shifted.getUTCDate()).padStart(2, '0');
+  return y + '-' + m + '-' + d;
 }
 
 function displayDateKey_(key) {
   const value = dateKeyValue_(key);
-  return isNaN(value) ? '' : Utilities.formatDate(new Date(value), 'UTC', 'd MMM yyyy');
+  if (isNaN(value)) return '';
+  const shown = new Date(value);
+  return shown.getUTCDate() + ' ' + MONTH_ABBREVIATIONS_[shown.getUTCMonth()] + ' ' + shown.getUTCFullYear();
 }
 
 function weekRangeForDateKey_(key) {
@@ -2046,8 +2798,6 @@ function legacyTrackerBadgeDefinitions_(sheet) {
   for (let offset = 0; offset < width; offset++) {
     dueDates[offset] = dateRowIndex === 0 ? topDates[offset] : bottomDates[offset];
   }
-  // A due date may be merged across several badge columns. Apply the merged
-  // cell's real date to every badge covered by that header.
   headerRange.getMergedRanges().forEach(function (merged) {
     if (merged.getRow() !== dateRowIndex + 1) return;
     const dueDate = trackerDueDateKey_(merged.getCell(1, 1).getValue(), merged.getCell(1, 1).getDisplayValue());
@@ -2076,14 +2826,19 @@ function legacyTrackerBadgeDefinitions_(sheet) {
   return result;
 }
 
+let _badgeDefinitionSheetCache_ = null;
 function ensureBadgeDefinitionSheet_() {
+  if (_badgeDefinitionSheetCache_) return _badgeDefinitionSheetCache_;
   const spreadsheet = tracker_();
   const sheet = getOrCreateSheet_(spreadsheet, SHEETS.badgeDefinitions, HEADERS.badgeDefinitions);
   const current = rows_(sheet, HEADERS.badgeDefinitions.length).filter(function (row) {
     return String(row[0] || '').trim() && String(row[1] || '').trim();
   });
-  if (current.length) return sheet;
-  const legacy = legacyTrackerBadgeDefinitions_(spreadsheet.getSheets()[0]);
+  if (current.length) {
+    _badgeDefinitionSheetCache_ = sheet;
+    return _badgeDefinitionSheetCache_;
+  }
+  const legacy = legacyTrackerBadgeDefinitions_(badgeTrackerSheet_());
   if (legacy.length) {
     const now = new Date();
     sheet.getRange(2, 1, legacy.length, HEADERS.badgeDefinitions.length).setValues(legacy.map(function (definition) {
@@ -2102,7 +2857,8 @@ function ensureBadgeDefinitionSheet_() {
     sheet.getRange(2, 6, legacy.length, 1).insertCheckboxes();
     sheet.getRange(2, 6, legacy.length, 1).setValue(true);
   }
-  return sheet;
+  _badgeDefinitionSheetCache_ = sheet;
+  return _badgeDefinitionSheetCache_;
 }
 
 function badgeDefinitionRows_(includeInactive) {
@@ -2304,7 +3060,7 @@ function readBadgeSyncStatus_(email) {
   if (!row) return { status: 'not_synced', message: 'Badge profile has not been synced yet.' };
   return {
     profileUrl: row[2] || '', badgeCount: Number(row[3]) || 0, matchedCount: Number(row[4]) || 0,
-    lastSynced: row[5] ? Utilities.formatDate(new Date(row[5]), TZ, 'yyyy-MM-dd HH:mm:ss') : '',
+    lastSynced: row[5] ? Utilities.formatDate(sheetSerialToDate_(row[5]), TZ, 'yyyy-MM-dd HH:mm:ss') : '',
     lastSyncedValue: row[5] || '', status: row[6] || 'unknown', message: row[7] || ''
   };
 }
@@ -2350,7 +3106,7 @@ function readEarnedBadges_(email) {
 }
 
 function markTrackerBadgesEarned_(person, badges) {
-  const sheet = tracker_().getSheets()[0];
+  const sheet = badgeTrackerSheet_();
   const values = sheet.getDataRange().getValues();
   let rowNumber = 0;
   for (let row = TRAINEE_FIRST_ROW - 1; row < values.length; row++) {
@@ -2418,8 +3174,8 @@ function maybeSyncBadgesForPerson_(person, profileUrl, force) {
 }
 
 function readTrackerProgress_() {
-  const sheet = tracker_().getSheets()[0];
-  const values = sheet.getDataRange().getValues();
+  const sheet = badgeTrackerSheet_();
+  const values = dataRangeValues_(sheet);
   const roster = getRosterMap();
   const definitions = trackerBadgeDefinitions_(sheet);
   const examColumns = examColumnMap_(sheet);
@@ -2632,6 +3388,76 @@ function scopeTrackerProgress_(progress, classConfig) {
   });
 }
 
+const TRAINEE_CACHE_KEY = 'trainee_overview_response_v1';
+const TRAINEE_CACHE_TTL_SECONDS = 20;
+
+function currentMonthKey_() {
+  return date_(new Date()).slice(0, 7);
+}
+
+function readTraineeCache_() {
+  try {
+    const cached = CacheService.getScriptCache().get(TRAINEE_CACHE_KEY);
+    return cached ? JSON.parse(cached) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeTraineeCache_(payload) {
+  try {
+    CacheService.getScriptCache().put(TRAINEE_CACHE_KEY, JSON.stringify(payload), TRAINEE_CACHE_TTL_SECONDS);
+  } catch (_) {
+  }
+}
+
+function invalidateTraineeCache_() {
+  try {
+    CacheService.getScriptCache().remove(TRAINEE_CACHE_KEY);
+  } catch (_) {}
+}
+
+// --- Student-level get_student cache -----------------------------------
+// get_student is expensive (readTrackerProgress_ alone re-scans the entire
+// Badge Tracker sheet for every trainee just to pull one row), so it gets its
+// own short-lived cache, keyed per student+class and versioned so any write
+// anywhere in the app invalidates every cached student payload at once.
+const STUDENT_CACHE_TTL_SECONDS = 20;
+const STUDENT_CACHE_VERSION_KEY = 'student_overview_version_v1';
+
+function studentCacheVersion_() {
+  try {
+    return CacheService.getScriptCache().get(STUDENT_CACHE_VERSION_KEY) || '0';
+  } catch (_) {
+    return '0';
+  }
+}
+
+function bumpStudentCacheVersion_() {
+  try {
+    CacheService.getScriptCache().put(STUDENT_CACHE_VERSION_KEY, String(Date.now()), 21600);
+  } catch (_) {}
+}
+
+function studentCacheKey_(email, classId) {
+  return 'student_overview_v1_' + studentCacheVersion_() + '_' + String(email || '').toLowerCase() + '|' + String(classId || '');
+}
+
+function readStudentCache_(email, classId) {
+  try {
+    const cached = CacheService.getScriptCache().get(studentCacheKey_(email, classId));
+    return cached ? JSON.parse(cached) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeStudentCache_(email, classId, payload) {
+  try {
+    CacheService.getScriptCache().put(studentCacheKey_(email, classId), JSON.stringify(payload), STUDENT_CACHE_TTL_SECONDS);
+  } catch (_) {}
+}
+
 function doGet(e) {
   if (!e || !e.parameter || Object.keys(e.parameter).length === 0) {
     return HtmlService.createHtmlOutput('<h2>SISG API is running</h2><p>Open <a href="' + APP_URL + '">the SISG application</a>.</p>')
@@ -2647,136 +3473,169 @@ function doGet(e) {
       const person = requirePerson_(e.parameter);
       const classes = activeStudentClasses_(person.email);
       const selectedClass = resolveStudentClass_(person.email, e.parameter.classId);
-      const profileUrl = readProfile_(person);
-      const badgeSync = selectedClass.badgesEnabled
-        ? maybeSyncBadgesForPerson_(person, profileUrl, false)
-        : { status: 'disabled', message: 'Badge tracking is disabled for this class.' };
-      const baseProgress = readTrackerProgress_()[person.email]
-        || { completedCount: 0, totalCount: 0, progress: 0, badges: [], requirements: [] };
-      const progress = scopeTrackerProgress_(baseProgress, selectedClass);
-      const calendar = readCourseCalendar_(person.email, new Date(), selectedClass.id, e.parameter.month);
-      const portalLinks = readPortalSettings_(false);
-      // Feedback forms are class-owned. Remove the legacy shared values before
-      // adding the selected class's links so an unconfigured class cannot see
-      // another class's forms through Portal Settings.
-      CLASS_FEEDBACK_LINK_KEYS.forEach(function (key) {
-        delete portalLinks[key];
-      });
-      const classFeedbackLinks = readClassFeedbackLinks_(selectedClass.id, false, false);
-      Object.keys(classFeedbackLinks).forEach(function (key) {
-        portalLinks[key] = classFeedbackLinks[key];
-      });
-      const classExamLinks = readClassExamLinks_(selectedClass.id, false, true);
-      Object.keys(classExamLinks).forEach(function (key) {
-        portalLinks[key] = classExamLinks[key];
-      });
-      if (!selectedClass.mockExamsEnabled) {
-        CLASS_EXAM_LINK_KEYS.forEach(function (key) { delete portalLinks[key]; });
+      const requestedStudentMonthKey = String(e.parameter.month || '').trim();
+      const requestedStudentDate = String(e.parameter.date || '').trim();
+      const canUseStudentCache = (!requestedStudentMonthKey || requestedStudentMonthKey === currentMonthKey_())
+        && (!requestedStudentDate || requestedStudentDate === date_(new Date()));
+      if (canUseStudentCache) {
+        const cachedStudentPayload = readStudentCache_(person.email, selectedClass.id);
+        if (cachedStudentPayload) return ok_(cachedStudentPayload);
       }
-      return ok_({
-        person: person,
-        classes: classes,
-        selectedClass: selectedClass,
-        features: {
-          portalEnabled: selectedClass.portalEnabled,
-          attendanceEnabled: selectedClass.attendanceEnabled,
-          badgesEnabled: selectedClass.badgesEnabled,
-          resourcesEnabled: selectedClass.resourcesEnabled,
-          mockExamsEnabled: selectedClass.mockExamsEnabled
-        },
-        profileUrl: profileUrl,
-        exam: selectedClass.mockExamsEnabled ? readExam_(person) : { status: 'Disabled for this class' },
-        examResults: selectedClass.mockExamsEnabled ? readExamResults_(person) : { latest: {}, history: [] },
-        portalLinks: portalLinks,
-        weeklyResources: selectedClass.resourcesEnabled ? readWeeklyResources_(calendar.weekStart, false, selectedClass.id) : [],
-        attendance: selectedClass.attendanceEnabled
-          ? readAttendance_(person.email, e.parameter.date || calendar.today).filter(function (log) { return log.classId === selectedClass.id; })
-          : [],
-        calendar: calendar,
-        progress: progress,
-        badges: selectedClass.badgesEnabled
-          ? scopeEarnedBadgesForClass_(
-            mergeEarnedBadges_(progress.badges || [], readEarnedBadges_(person.email)),
-            selectedClass
-          )
-          : [],
-        badgeSync: badgeSync,
-        projects: readStudentProjectWorkspace_(person, selectedClass)
-      });
+      warmSheetBatchCache_();
+      try {
+        const profileUrl = readProfile_(person);
+        const badgeSync = selectedClass.badgesEnabled
+          ? maybeSyncBadgesForPerson_(person, profileUrl, false)
+          : { status: 'disabled', message: 'Badge tracking is disabled for this class.' };
+        const baseProgress = readTrackerProgress_()[person.email]
+          || { completedCount: 0, totalCount: 0, progress: 0, badges: [], requirements: [] };
+        const progress = scopeTrackerProgress_(baseProgress, selectedClass);
+        const calendar = readCourseCalendar_(person.email, new Date(), selectedClass.id, e.parameter.month);
+        const portalLinks = readPortalSettings_(false);
+        CLASS_FEEDBACK_LINK_KEYS.forEach(function (key) {
+          delete portalLinks[key];
+        });
+        const classFeedbackLinks = readClassFeedbackLinks_(selectedClass.id, false, false);
+        Object.keys(classFeedbackLinks).forEach(function (key) {
+          portalLinks[key] = classFeedbackLinks[key];
+        });
+        const classExamLinks = readClassExamLinks_(selectedClass.id, false, true);
+        Object.keys(classExamLinks).forEach(function (key) {
+          portalLinks[key] = classExamLinks[key];
+        });
+        if (!selectedClass.mockExamsEnabled) {
+          CLASS_EXAM_LINK_KEYS.forEach(function (key) { delete portalLinks[key]; });
+        }
+        const formSubmissionsMap = readFormSubmissionsMap_();
+        const studentPayload = {
+          person: person,
+          classes: classes,
+          selectedClass: selectedClass,
+          features: {
+            portalEnabled: selectedClass.portalEnabled,
+            attendanceEnabled: selectedClass.attendanceEnabled,
+            badgesEnabled: selectedClass.badgesEnabled,
+            resourcesEnabled: selectedClass.resourcesEnabled,
+            mockExamsEnabled: selectedClass.mockExamsEnabled
+          },
+          profileUrl: profileUrl,
+          exam: selectedClass.mockExamsEnabled ? readExam_(person) : { date: '', venue: '', status: 'Disabled for this class', voucher: '' },
+          examResults: selectedClass.mockExamsEnabled ? readExamResults_(person) : { latest: {}, history: [] },
+          portalLinks: portalLinks,
+          weeklyResources: selectedClass.resourcesEnabled ? readWeeklyResources_(calendar.weekStart, false, selectedClass.id) : [],
+          attendance: selectedClass.attendanceEnabled
+            ? readAttendance_(person.email, e.parameter.date || calendar.today).filter(function (log) { return log.classId === selectedClass.id; })
+            : [],
+          calendar: calendar,
+          progress: progress,
+          badges: selectedClass.badgesEnabled
+            ? scopeEarnedBadgesForClass_(
+              mergeEarnedBadges_(progress.badges || [], readEarnedBadges_(person.email)),
+              selectedClass
+            )
+            : [],
+          badgeSync: badgeSync,
+          projects: readStudentProjectWorkspace_(person, selectedClass),
+          formSubmissions: formSubmissionsMap[person.email] || { feedback_form_1: false, feedback_form_2: false }
+        };
+        if (canUseStudentCache) writeStudentCache_(person.email, selectedClass.id, studentPayload);
+        return ok_(studentPayload);
+      } finally {
+        clearSheetBatchCache_();
+      }
+    }
+    const requestedMonthKey = String(e.parameter.month || '').trim();
+    const canUseTraineeCache = !requestedMonthKey || requestedMonthKey === currentMonthKey_();
+    if (canUseTraineeCache) {
+      const cachedPayload = readTraineeCache_();
+      if (cachedPayload) return ok_(cachedPayload);
     }
     const roster = getRosterMap();
-    const progress = readTrackerProgress_();
-    const classManagement = readClassManagement_();
-    const classConfigById = {};
-    classManagement.classes.forEach(function (item) { classConfigById[item.id] = item; });
-    const examResultMap = readExamResultsMap_();
-    const examMap = examMap_();
-    const badgeSyncMap = badgeSyncMap_();
-    const earnedBadgesMap = earnedBadgesMap_();
-    const today = date_(new Date());
-    const logs = readAttendance_('', today);
-    const courseCalendar = readCourseCalendar_('', new Date(), 'ALL', e.parameter.month);
-    const data = Object.keys(roster).map(name => {
-      const email = roster[name];
-      const personLogs = logs.filter(log => log.email === email);
-      const submittedLogs = personLogs.filter(function (log) { return !/^no show$/i.test(log.attendance); });
-      const personProgress = progress[email] || { completedCount: 0, totalCount: 0, progress: 0, badges: [] };
-      const membershipRows = classManagement.memberships.filter(function (item) { return item.email === email; });
-      const classIds = membershipRows.length
-        ? membershipRows.filter(function (item) { return item.active; }).map(function (item) { return item.classId; })
-        : [DEFAULT_CLASS_ID];
-      const progressByClass = {};
-      classIds.forEach(function (classId) {
-        const classConfig = classConfigById[classId];
-        if (classConfig) progressByClass[classId] = scopeTrackerProgress_(personProgress, classConfig);
+    warmSheetBatchCache_();
+    try {
+      const progress = readTrackerProgress_();
+      const classManagement = readClassManagement_();
+      const classConfigById = {};
+      classManagement.classes.forEach(function (item) { classConfigById[item.id] = item; });
+      const examResultMap = readExamResultsMap_();
+      const examMap = examMap_();
+      const badgeSyncMap = badgeSyncMap_();
+      const formSubmissionsMap = readFormSubmissionsMap_();
+      const earnedBadgesMap = earnedBadgesMap_();
+      const today = date_(new Date());
+      const logs = readAttendance_('', today);
+      const courseCalendar = readCourseCalendar_('', new Date(), 'ALL', e.parameter.month);
+      const data = Object.keys(roster).map(name => {
+        const email = roster[name];
+        const personLogs = logs.filter(log => log.email === email);
+        const submittedLogs = personLogs.filter(function (log) { return !/^no show$/i.test(log.attendance); });
+        const personProgress = progress[email] || { completedCount: 0, totalCount: 0, progress: 0, badges: [] };
+        const membershipRows = classManagement.memberships.filter(function (item) { return item.email === email; });
+        const classIds = membershipRows.length
+          ? membershipRows.filter(function (item) { return item.active; }).map(function (item) { return item.classId; })
+          : [DEFAULT_CLASS_ID];
+        const progressByClass = {};
+        classIds.forEach(function (classId) {
+          const classConfig = classConfigById[classId];
+          if (classConfig) progressByClass[classId] = scopeTrackerProgress_(personProgress, classConfig);
+        });
+        return Object.assign({}, personProgress, {
+          name: name, email: email,
+          classIds: classIds,
+          progressByClass: progressByClass,
+          attendanceRecords: personLogs,
+          todayAttendance: submittedLogs.length ? submittedLogs.map(log => log.session + ': ' + log.attendance).join(', ') : 'Not Checked-in',
+          hasSubmittedAttendance: submittedLogs.length > 0,
+          hasNoShow: personLogs.some(function (log) { return /^no show$/i.test(log.attendance); }),
+          isAcknowledged: submittedLogs.length > 0 && submittedLogs.every(log => log.acknowledged),
+          todaySessions: courseCalendar.todayEvents.filter(function (event) { return classIds.indexOf(event.classId) >= 0; }),
+          exam: examMap[email] || { date: '', venue: '', status: 'Unscheduled', voucher: '' },
+          examResults: examResultMap[email] || { latest: {}, history: [] },
+          badges: mergeEarnedBadges_(personProgress.badges || [], earnedBadgesMap[email] || []),
+          badgeSync: badgeSyncMap[email] || { status: 'not_synced', message: 'Badge profile has not been synced yet.' },
+          formSubmissions: formSubmissionsMap[email] || { feedback_form_1: false, feedback_form_2: false }
+        });
       });
-      return Object.assign({}, personProgress, {
-        name: name, email: email,
-        classIds: classIds,
-        progressByClass: progressByClass,
-        attendanceRecords: personLogs,
-        todayAttendance: submittedLogs.length ? submittedLogs.map(log => log.session + ': ' + log.attendance).join(', ') : 'Not Checked-in',
-        hasSubmittedAttendance: submittedLogs.length > 0,
-        hasNoShow: personLogs.some(function (log) { return /^no show$/i.test(log.attendance); }),
-        isAcknowledged: submittedLogs.length > 0 && submittedLogs.every(log => log.acknowledged),
-        todaySessions: courseCalendar.todayEvents.filter(function (event) { return classIds.indexOf(event.classId) >= 0; }),
-        exam: examMap[email] || { status: 'Not scheduled' },
-        examResults: examResultMap[email] || { latest: {}, history: [] },
-        badges: mergeEarnedBadges_(personProgress.badges || [], earnedBadgesMap[email] || []),
-        badgeSync: badgeSyncMap[email] || { status: 'not_synced', message: 'Badge profile has not been synced yet.' }
+      Object.keys(progress).forEach(function (key) {
+        const trackerPerson = progress[key];
+        if (!trackerPerson.trackerOnly) return;
+        data.push(Object.assign({}, trackerPerson, {
+          name: trackerPerson.name,
+          email: '',
+          classIds: [DEFAULT_CLASS_ID],
+          progressByClass: classConfigById[DEFAULT_CLASS_ID]
+            ? { DEFAULT: scopeTrackerProgress_(trackerPerson, classConfigById[DEFAULT_CLASS_ID]) }
+            : {},
+          attendanceRecords: [],
+          todayAttendance: 'Not linked to attendance roster',
+          hasSubmittedAttendance: false,
+          hasNoShow: false,
+          isAcknowledged: false,
+          todaySessions: courseCalendar.todayEvents.filter(function (event) { return event.classId === DEFAULT_CLASS_ID; }),
+          exam: { date: '', venue: '', status: 'Tracker only', voucher: '' },
+          examResults: { latest: {}, history: [] },
+          badges: trackerPerson.badges || [],
+          badgeSync: { status: 'not_linked', message: 'Add this trainee to Roster with an email to enable attendance and profile sync.' },
+          formSubmissions: { feedback_form_1: false, feedback_form_2: false }
+        }));
       });
-    });
-    Object.keys(progress).forEach(function (key) {
-      const trackerPerson = progress[key];
-      if (!trackerPerson.trackerOnly) return;
-      data.push(Object.assign({}, trackerPerson, {
-        name: trackerPerson.name,
-        email: '',
-        classIds: [DEFAULT_CLASS_ID],
-        progressByClass: classConfigById[DEFAULT_CLASS_ID]
-          ? { DEFAULT: scopeTrackerProgress_(trackerPerson, classConfigById[DEFAULT_CLASS_ID]) }
-          : {},
-        attendanceRecords: [],
-        todayAttendance: 'Not linked to attendance roster',
-        hasSubmittedAttendance: false,
-        hasNoShow: false,
-        isAcknowledged: false,
-        todaySessions: courseCalendar.todayEvents.filter(function (event) { return event.classId === DEFAULT_CLASS_ID; }),
-        exam: { status: 'Tracker only' },
-        examResults: { latest: {}, history: [] },
-        badges: trackerPerson.badges || [],
-        badgeSync: { status: 'not_linked', message: 'Add this trainee to Roster with an email to enable attendance and profile sync.' }
-      }));
-    });
-    return ok_({
-      trainees: data,
-      calendar: courseCalendar,
-      weeklyResources: readWeeklyResources_(courseCalendar.weekStart, true, 'ALL'),
-      resourceHistory: readWeeklyResourceHistory_('ALL'),
-      portalLinks: readPortalSettings_(true),
-      classManagement: classManagement,
-      mockScores: buildMockScoreShowcase_(data)
-    });
+      const traineePayload = {
+        trainees: data,
+        calendar: courseCalendar,
+        weeklyResources: readWeeklyResources_(courseCalendar.weekStart, true, 'ALL'),
+        resourceHistory: readWeeklyResourceHistory_('ALL'),
+        portalLinks: readPortalSettings_(true),
+        classManagement: classManagement,
+        mockScores: buildMockScoreShowcase_(data),
+        instructorManagement: readInstructorManagement_(),
+        feedbackLogs: readFeedbackLogs_(),
+        behaviorReports: readBehaviorReports_()
+      };
+      if (canUseTraineeCache) writeTraineeCache_(traineePayload);
+      return ok_(traineePayload);
+    } finally {
+      clearSheetBatchCache_();
+    }
   } catch (error) {
     return fail_(error);
   }
@@ -2789,51 +3648,84 @@ function doPost(e) {
     const data = JSON.parse(e.postData && e.postData.contents || '{}');
     const action = data.action;
     const trainerAction = [
-      'teacher_acknowledge', 'send_attendance_emails', 'sync_all_badges',
-      'save_portal_links', 'save_weekly_resource', 'delete_weekly_resource',
+      'teacher_acknowledge', 'teacher_acknowledge_all', 'send_attendance_emails', 'sync_all_badges',
+      'save_portal_links', 'save_weekly_resource', 'delete_weekly_resource', 'delete_weekly_resource_permanently',
       'save_class', 'save_class_members', 'save_class_badges', 'save_class_feedback_links', 'save_class_exam_links',
+      'delete_class',
       'save_project_group', 'save_project_group_assignments', 'save_project', 'save_group_project',
-      'save_badge_definition', 'archive_badge_definition', 'save_course', 'archive_course'
+      'delete_project_group', 'delete_project', 'delete_group_project',
+      'save_badge_definition', 'archive_badge_definition', 'save_course', 'archive_course', 'delete_course',
+      'add_roster_student', 'add_roster_students', 'set_roster_active', 'delete_roster_student', 'repair_tracker_rows',
+      'add_instructors', 'set_instructor_active', 'delete_instructor',
+      'delete_feedback_log', 'submit_behavior_report', 'delete_behavior_report', 'submit_form_status'
     ].indexOf(action) >= 0;
     const identity = requireIdentity_(data, trainerAction);
     data.email = identity.email;
-    if (action === 'verify_email') {
-      const person = rosterPersonByEmail_(identity.email);
-      return person ? ok_(person) : fail_(new Error('Email not found.'));
+    const result = dispatchPostAction_(action, data, identity);
+    if (action !== 'verify_email') {
+      invalidateTraineeCache_();
+      bumpStudentCacheVersion_();
     }
-    if (action === 'student_checkin') return studentCheckin_(data);
-    if (action === 'teacher_acknowledge') return acknowledge_(data);
-    if (action === 'register_pca_exam') return registerExam_(data);
-    if (action === 'submit_exam_result') return submitExamResult_(data);
-    if (action === 'submit_feedback') return submitFeedback_(data);
-    if (action === 'save_profile') return saveProfile_(data);
-    if (action === 'sync_badges') return syncBadgesAction_(data);
-    if (action === 'sync_all_badges') return syncAllBadgeProfilesAction_();
-    if (action === 'save_portal_links') return savePortalLinks_(data);
-    if (action === 'save_weekly_resource') return saveWeeklyResource_(data);
-    if (action === 'delete_weekly_resource') return deleteWeeklyResource_(data);
-    if (action === 'save_class') return saveClass_(data);
-    if (action === 'save_class_members') return saveClassMembers_(data);
-    if (action === 'save_class_badges') return saveClassBadges_(data);
-    if (action === 'save_class_feedback_links') return saveClassFeedbackLinks_(data);
-    if (action === 'save_class_exam_links') return saveClassExamLinks_(data);
-    if (action === 'save_project_group') return saveProjectGroup_(data);
-    if (action === 'save_project_group_assignments') return saveProjectGroupAssignments_(data);
-    if (action === 'save_project') return saveProject_(data);
-    if (action === 'save_group_project') return saveGroupProject_(data);
-    if (action === 'submit_project_submission') return submitProjectSubmission_(data);
-    if (action === 'submit_peer_evaluation') return submitPeerEvaluation_(data);
-    if (action === 'save_badge_definition') return saveBadgeDefinition_(data);
-    if (action === 'archive_badge_definition') return archiveBadgeDefinition_(data);
-    if (action === 'save_course') return saveCourse_(data);
-    if (action === 'archive_course') return archiveCourse_(data);
-    if (action === 'send_attendance_emails') return sendAttendanceEmails_(data);
-    throw new Error('Unknown action: ' + action);
+    return result;
   } catch (error) {
     return fail_(error);
   } finally {
     lock.releaseLock();
   }
+}
+
+function dispatchPostAction_(action, data, identity) {
+  if (action === 'verify_email') {
+    const person = rosterPersonByEmail_(identity.email);
+    return person ? ok_(person) : fail_(new Error('Email not found.'));
+  }
+  if (action === 'student_checkin') return studentCheckin_(data);
+  if (action === 'teacher_acknowledge') return acknowledge_(data);
+  if (action === 'teacher_acknowledge_all') return acknowledgeAll_(data);
+  if (action === 'register_pca_exam') return registerExam_(data);
+  if (action === 'submit_exam_result') return submitExamResult_(data);
+  if (action === 'submit_feedback') return submitFeedback_(data);
+  if (action === 'save_profile') return saveProfile_(data);
+  if (action === 'sync_badges') return syncBadgesAction_(data);
+  if (action === 'sync_all_badges') return syncAllBadgeProfilesAction_();
+  if (action === 'save_portal_links') return savePortalLinks_(data);
+  if (action === 'save_weekly_resource') return saveWeeklyResource_(data);
+  if (action === 'delete_weekly_resource') return deleteWeeklyResource_(data);
+  if (action === 'delete_weekly_resource_permanently') return deleteWeeklyResourcePermanently_(data);
+  if (action === 'save_class') return saveClass_(data);
+  if (action === 'save_class_members') return saveClassMembers_(data);
+  if (action === 'add_roster_student') return addRosterStudent_(data);
+  if (action === 'add_roster_students') return addRosterStudents_(data);
+  if (action === 'repair_tracker_rows') return repairMissingTrackerRows_();
+  if (action === 'set_roster_active') return setRosterActive_(data);
+  if (action === 'delete_roster_student') return deleteRosterStudent_(data);
+  if (action === 'add_instructors') return addInstructors_(data);
+  if (action === 'set_instructor_active') return setInstructorActive_(data);
+  if (action === 'delete_instructor') return deleteInstructor_(data);
+  if (action === 'delete_feedback_log') return deleteFeedbackLog_(data);
+  if (action === 'submit_behavior_report') return submitBehaviorReport_(data, identity);
+  if (action === 'delete_behavior_report') return deleteBehaviorReport_(data);
+  if (action === 'save_class_badges') return saveClassBadges_(data);
+  if (action === 'save_class_feedback_links') return saveClassFeedbackLinks_(data);
+  if (action === 'save_class_exam_links') return saveClassExamLinks_(data);
+  if (action === 'delete_class') return deleteClass_(data);
+  if (action === 'save_project_group') return saveProjectGroup_(data);
+  if (action === 'save_project_group_assignments') return saveProjectGroupAssignments_(data);
+  if (action === 'save_project') return saveProject_(data);
+  if (action === 'save_group_project') return saveGroupProject_(data);
+  if (action === 'delete_project_group') return deleteProjectGroup_(data);
+  if (action === 'delete_project') return deleteProjectDefinition_(data);
+  if (action === 'delete_group_project') return deleteGroupProjectAssignment_(data);
+  if (action === 'submit_project_submission') return submitProjectSubmission_(data);
+  if (action === 'submit_peer_evaluation') return submitPeerEvaluation_(data);
+  if (action === 'save_badge_definition') return saveBadgeDefinition_(data);
+  if (action === 'archive_badge_definition') return archiveBadgeDefinition_(data);
+  if (action === 'save_course') return saveCourse_(data);
+  if (action === 'archive_course') return archiveCourse_(data);
+  if (action === 'delete_course') return deleteCourse_(data);
+  if (action === 'send_attendance_emails') return sendAttendanceEmails_(data);
+  if (action === 'submit_form_status') return submitFormStatus_(data, identity);
+  throw new Error('Unknown action: ' + action);
 }
 
 function studentCheckin_(data) {
@@ -2970,6 +3862,31 @@ function acknowledge_(data) {
   return ok_({ updated: count }, count === 1 ? 'Attendance verified!' : count + ' attendance records verified!');
 }
 
+function acknowledgeAll_(data) {
+  const classId = normaliseClassId_(data.classId, true);
+  const day = String(data.date || date_(new Date()));
+  const sheet = getOrCreateSheet_(attendance_(), SHEETS.attendance, HEADERS.attendance);
+  const values = rows_(sheet, HEADERS.attendance.length);
+  let count = 0;
+  values.forEach(function (row, index) {
+    const rowClassId = normaliseClassId_(row[10] || DEFAULT_CLASS_ID, true) || DEFAULT_CLASS_ID;
+    const sameClass = !classId || classId === 'ALL' || rowClassId === classId;
+    if (
+      sameClass
+      && date_(row[5]) === day
+      && !/^no show$/i.test(String(row[3] || '').trim())
+      && row[4] !== true
+    ) {
+      sheet.getRange(index + 2, 5).setValue(true);
+      count++;
+    }
+  });
+  return ok_(
+    { updated: count },
+    count ? (count === 1 ? '1 check-in verified!' : count + ' check-ins verified!') : 'No pending check-ins were found for today.'
+  );
+}
+
 function upsertByEmail_(sheet, width, email, values) {
   const data = rows_(sheet, width);
   const index = data.findIndex(row => String(row[0]).toLowerCase() === email);
@@ -2979,14 +3896,17 @@ function upsertByEmail_(sheet, width, email, values) {
 
 function registerExam_(data) {
   const person = requireStudentFeature_(data, 'mockExamsEnabled').person;
-  if (!data.examDate || !data.examVenue) throw new Error('Exam date and venue are required.');
+  const status = normalisePcaExamStatus_(data.examStatus);
+  if (status !== 'Unscheduled' && (!data.examDate || !data.examVenue)) {
+    throw new Error('Exam date and venue are required unless the status is Unscheduled.');
+  }
   const sheet = getOrCreateSheet_(tracker_(), SHEETS.exams, HEADERS.exams);
   const current = readExam_(person);
   upsertByEmail_(sheet, HEADERS.exams.length, person.email, [
-    person.email, person.name, data.examDate, data.examVenue,
-    data.examStatus || 'Scheduled', data.voucherCode || current.voucher || '', new Date()
+    person.email, person.name, data.examDate || '', data.examVenue || '',
+    status, data.voucherCode || current.voucher || '', new Date()
   ]);
-  return ok_(null, 'PCA exam intent registered successfully!');
+  return ok_(readExam_(person), 'PCA exam status updated successfully!');
 }
 
 function submitFeedback_(data) {
@@ -2997,12 +3917,138 @@ function submitFeedback_(data) {
   return ok_(null, 'Thank you! Your feedback has been recorded.');
 }
 
+function feedbackLogId_(row) {
+  const rawEmail = String(row[2] || '').trim().toLowerCase();
+  const type = String(row[3] || 'Suggestion').trim();
+  const createdAtValue = row[0];
+  const createdAtDate = Object.prototype.toString.call(createdAtValue) === '[object Date]'
+    ? createdAtValue
+    : new Date(createdAtValue);
+  const validDate = !isNaN(createdAtDate.getTime());
+  return (validDate ? createdAtDate.getTime() : String(createdAtValue)) + '|' + rawEmail + '|' + type;
+}
+
+function readFeedbackLogs_() {
+  const sheet = getOrCreateSheet_(tracker_(), SHEETS.feedback, HEADERS.feedback);
+  return rows_(sheet, HEADERS.feedback.length).map(function (row) {
+    const anonymous = booleanValue_(row[5], false);
+    const rawName = String(row[1] || '').trim();
+    const rawEmail = String(row[2] || '').trim().toLowerCase();
+    const createdAtValue = row[0];
+    const createdAtDate = Object.prototype.toString.call(createdAtValue) === '[object Date]'
+      ? createdAtValue
+      : new Date(createdAtValue);
+    const validDate = !isNaN(createdAtDate.getTime());
+    return {
+      id: feedbackLogId_(row),
+      createdAt: validDate ? Utilities.formatDate(createdAtDate, TZ, 'yyyy-MM-dd HH:mm:ss') : '',
+      createdAtSort: validDate ? createdAtDate.getTime() : 0,
+      name: anonymous ? 'Anonymous' : (rawName || 'Unknown'),
+      email: anonymous ? '' : rawEmail,
+      type: String(row[3] || 'Suggestion').trim(),
+      message: String(row[4] || '').trim(),
+      anonymous: anonymous
+    };
+  }).filter(function (item) { return item.message; }).sort(function (left, right) {
+    return right.createdAtSort - left.createdAtSort;
+  });
+}
+
+function deleteFeedbackLog_(data) {
+  const id = String(data.id || '').trim();
+  if (!id) throw new Error('Feedback entry was not found.');
+  const sheet = getOrCreateSheet_(tracker_(), SHEETS.feedback, HEADERS.feedback);
+  const values = rows_(sheet, HEADERS.feedback.length);
+  const index = values.findIndex(function (row) { return feedbackLogId_(row) === id; });
+  if (index < 0) throw new Error('This feedback entry was not found — it may have already been removed.');
+  sheet.deleteRow(index + 2);
+  return ok_(readFeedbackLogs_(), 'Feedback entry deleted.');
+}
+
+function behaviorReportUploadFolder_() {
+  const roots = DriveApp.getFoldersByName('SISG_Behavior_Reports');
+  return roots.hasNext() ? roots.next() : DriveApp.createFolder('SISG_Behavior_Reports');
+}
+
+function submitBehaviorReport_(data, identity) {
+  const student = requirePerson_({ email: data.studentEmail });
+  const category = String(data.category || '').trim().slice(0, 120);
+  const behavior = String(data.behavior || '').trim().slice(0, 300);
+  if (!behavior) throw new Error('Describe the observed behavior.');
+  const evidence = String(data.evidence || '').trim().slice(0, 3000);
+  const reportDate = trackerDueDateKey_(data.date, data.date) || date_(new Date());
+
+  let fileUrl = '';
+  let fileName = '';
+  if (data.fileData) {
+    const bytes = Utilities.base64Decode(String(data.fileData));
+    if (bytes.length > RESOURCE_UPLOAD_MAX_BYTES) throw new Error('Evidence file must be 8 MB or smaller.');
+    fileName = String(data.fileName || 'evidence-file').replace(/[^a-zA-Z0-9._ -]/g, '_').slice(0, 150);
+    const file = behaviorReportUploadFolder_().createFile(
+      Utilities.newBlob(bytes, data.mimeType || 'application/octet-stream', fileName)
+    );
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (_) {}
+    fileUrl = file.getUrl();
+  }
+
+  const sheet = getOrCreateSheet_(tracker_(), SHEETS.behaviorReports, HEADERS.behaviorReports);
+  const reportId = 'BR-' + Utilities.getUuid().slice(0, 8).toUpperCase();
+  sheet.appendRow([
+    reportId, reportDate, student.name, student.email, category, behavior, evidence,
+    fileUrl, fileName, identity ? identity.email : '', new Date()
+  ]);
+  return ok_(readBehaviorReports_(), 'Behavior report saved for ' + student.name + '.');
+}
+
+function readBehaviorReports_() {
+  const sheet = getOrCreateSheet_(tracker_(), SHEETS.behaviorReports, HEADERS.behaviorReports);
+  return rows_(sheet, HEADERS.behaviorReports.length).map(function (row) {
+    const createdAtValue = row[10];
+    const createdAtDate = Object.prototype.toString.call(createdAtValue) === '[object Date]'
+      ? createdAtValue
+      : new Date(createdAtValue);
+    const validDate = !isNaN(createdAtDate.getTime());
+    const dateKey = row[1] ? trackerDueDateKey_(row[1], row[1]) : '';
+    return {
+      id: String(row[0] || ''),
+      date: dateKey ? displayDateKey_(dateKey) : '',
+      dateKey: dateKey,
+      traineeName: String(row[2] || '').trim(),
+      traineeEmail: String(row[3] || '').trim().toLowerCase(),
+      category: String(row[4] || '').trim(),
+      behavior: String(row[5] || '').trim(),
+      evidence: String(row[6] || '').trim(),
+      fileUrl: String(row[7] || ''),
+      fileName: String(row[8] || ''),
+      reportedBy: String(row[9] || '').trim(),
+      createdAt: validDate ? Utilities.formatDate(createdAtDate, TZ, 'yyyy-MM-dd HH:mm:ss') : '',
+      createdAtSort: validDate ? createdAtDate.getTime() : 0
+    };
+  }).filter(function (item) { return item.id; }).sort(function (left, right) {
+    return right.createdAtSort - left.createdAtSort;
+  });
+}
+
+function deleteBehaviorReport_(data) {
+  const id = String(data.id || '').trim();
+  if (!id) throw new Error('Behavior report was not found.');
+  const sheet = getOrCreateSheet_(tracker_(), SHEETS.behaviorReports, HEADERS.behaviorReports);
+  const values = rows_(sheet, HEADERS.behaviorReports.length);
+  const index = values.findIndex(function (row) { return String(row[0] || '') === id; });
+  if (index < 0) throw new Error('This behavior report was not found — it may have already been removed.');
+  sheet.deleteRow(index + 2);
+  return ok_(readBehaviorReports_(), 'Behavior report deleted.');
+}
+
 function saveProfile_(data) {
-  const person = requireStudentFeature_(data, 'badgesEnabled').person;
+  const access = requireStudentFeature_(data, 'badgesEnabled');
+  const person = access.person;
   const url = normaliseSkillsProfileUrl_(data.skillsUrl);
   const sheet = getOrCreateSheet_(tracker_(), SHEETS.profiles, HEADERS.profiles);
   upsertByEmail_(sheet, HEADERS.profiles.length, person.email, [person.email, person.name, url, new Date()]);
-  const legacySheet = tracker_().getSheets()[0];
+  const legacySheet = badgeTrackerSheet_();
   const legacyRows = legacySheet.getDataRange().getValues();
   for (let i = 2; i < legacyRows.length; i++) {
     if (String(legacyRows[i][1] || '').trim() === person.name) {
@@ -3014,7 +4060,17 @@ function saveProfile_(data) {
   const message = badgeSync.status === 'success'
     ? 'Profile saved and ' + badgeSync.badgeCount + ' badge(s) synced successfully!'
     : 'Profile saved. Badge sync needs attention: ' + badgeSync.message;
-  return ok_({ badgeSync: badgeSync, badges: readEarnedBadges_(person.email) }, message);
+  const baseProgress = readTrackerProgress_()[person.email]
+    || { completedCount: 0, totalCount: 0, progress: 0, badges: [], requirements: [] };
+  const progress = scopeTrackerProgress_(baseProgress, access.classConfig);
+  return ok_({
+    badgeSync: badgeSync,
+    badges: scopeEarnedBadgesForClass_(
+      mergeEarnedBadges_(progress.badges || [], readEarnedBadges_(person.email)),
+      access.classConfig
+    ),
+    progress: progress
+  }, message);
 }
 
 function syncBadgesAction_(data) {
@@ -3222,4 +4278,45 @@ function sendAttendanceEmails_(data) {
 
 function handleClientRequest(payload) {
   return doPost({ postData: { contents: JSON.stringify(payload) } }).getContent();
+}
+
+function readFormSubmissionsMap_() {
+  const sheet = getOrCreateSheet_(tracker_(), SHEETS.formSubmissions, HEADERS.formSubmissions);
+  const result = {};
+  rows_(sheet, HEADERS.formSubmissions.length).forEach(function(row) {
+    const email = String(row[0] || '').trim().toLowerCase();
+    if (!email) return;
+    result[email] = {
+      feedback_form_1: booleanValue_(row[2], false),
+      feedback_form_2: booleanValue_(row[3], false)
+    };
+  });
+  return result;
+}
+
+function submitFormStatus_(data, identity) {
+  const isTeacher = isTrainerEmail_(identity.email);
+  const targetEmail = isTeacher && data.studentEmail ? String(data.studentEmail).trim().toLowerCase() : identity.email;
+  const person = rosterPersonByEmail_(targetEmail);
+  if (!person) throw new Error('Student not found.');
+
+  const formKey = String(data.formKey || '');
+  if (formKey !== 'feedback_form_1' && formKey !== 'feedback_form_2') throw new Error('Invalid form key.');
+
+  const status = data.status === true;
+  const sheet = getOrCreateSheet_(tracker_(), SHEETS.formSubmissions, HEADERS.formSubmissions);
+  const rows = rows_(sheet, HEADERS.formSubmissions.length);
+  const index = rows.findIndex(row => String(row[0] || '').trim().toLowerCase() === targetEmail);
+
+  const now = new Date();
+  if (index < 0) {
+    const newRow = [targetEmail, person.name, false, false, now];
+    newRow[formKey === 'feedback_form_1' ? 2 : 3] = status;
+    sheet.appendRow(newRow);
+  } else {
+    const col = formKey === 'feedback_form_1' ? 3 : 4; 
+    sheet.getRange(index + 2, col).setValue(status);
+    sheet.getRange(index + 2, 5).setValue(now);
+  }
+  return ok_(null, 'Status updated.');
 }
