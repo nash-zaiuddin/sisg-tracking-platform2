@@ -589,6 +589,42 @@ window.renderPortalLinks = function renderPortalLinks(links = {}) {
 };
 
 
+// Reflects the student's own "I have completed this form" state. The same
+// values drive the trainer's Form Submission Status table, which reads the
+// Form Submissions sheet, so marking here shows up there on the trainer's
+// next load.
+window.renderFormSubmissions = function renderFormSubmissions(submissions = {}) {
+  document.querySelectorAll('[data-form-done]').forEach(input => {
+    const key = input.dataset.formDone;
+    const done = submissions[key] === true;
+    input.checked = done;
+    input.disabled = false;
+    const wrapper = input.closest('[data-form-card]');
+    const label = wrapper && wrapper.querySelector('[data-form-done-label]');
+    if (label) label.textContent = done ? 'Marked as completed' : 'I have completed this form';
+    if (label) label.className = done
+      ? 'text-sm font-semibold text-green-700'
+      : 'text-sm font-medium text-slate-600';
+  });
+};
+
+window.markFormSubmitted = async function markFormSubmitted(formKey, input) {
+  const desired = input.checked;
+  input.disabled = true;
+  try {
+    await apiPost('submit_form_status', { formKey, status: desired });
+    window.studentFormSubmissions = Object.assign({}, window.studentFormSubmissions, { [formKey]: desired });
+    window.renderFormSubmissions(window.studentFormSubmissions);
+    window.showToast(desired ? 'Marked as completed. Your trainer can see this.' : 'Unmarked.', 'success');
+  } catch (error) {
+    // Put the checkbox back where it was so it never shows a state the sheet
+    // does not actually hold.
+    input.checked = !desired;
+    input.disabled = false;
+    window.showToast(error.message, 'error');
+  }
+};
+
 function projectEscapeHtml(value) {
   return String(value == null ? '' : value).replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
 }
@@ -813,6 +849,8 @@ window.loadStudentData = async function loadStudentData(email) {
     window.applyExamStatus(data.exam || {});
     window.renderCourseCalendar(data.calendar || {}, data.weeklyResources || []);
     window.renderPortalLinks(data.portalLinks || {});
+    window.studentFormSubmissions = data.formSubmissions || {};
+    window.renderFormSubmissions(window.studentFormSubmissions);
     window.renderExamResults(data.examResults || {});
     window.renderProjectWorkspace(data.projects || {});
     window.renderEarnedBadges(data.badges || progress.badges || [], data.badgeSync || {});

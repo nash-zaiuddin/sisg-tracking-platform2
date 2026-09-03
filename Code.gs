@@ -3703,7 +3703,11 @@ function doPost(e) {
       'save_badge_definition', 'archive_badge_definition', 'save_course', 'archive_course', 'delete_course',
       'add_roster_student', 'add_roster_students', 'set_roster_active', 'delete_roster_student', 'repair_tracker_rows',
       'add_instructors', 'set_instructor_active', 'delete_instructor',
-      'delete_feedback_log', 'submit_behavior_report', 'delete_behavior_report', 'submit_form_status'
+      // submit_form_status is deliberately NOT trainer-only: students mark their
+      // own feedback forms as done. submitFormStatus_ forces the target email to
+      // the caller's identity unless the caller is a trainer, so a student can
+      // only ever write their own row, while trainers keep the manual override.
+      'delete_feedback_log', 'submit_behavior_report', 'delete_behavior_report'
     ].indexOf(action) >= 0;
     // Identity verification is an external HTTPS round-trip to Google's
     // Identity Toolkit and touches no spreadsheet, so it runs before the lock
