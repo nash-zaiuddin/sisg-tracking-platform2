@@ -1,6 +1,53 @@
 const API_KEY = 'company_cloud_tracker_2026';
-const TRACKER_SPREADSHEET_ID = '1bwKOhbzuQPwpTl0r7Go41K71_CrJTLBZWzDymZTzvyo';
-const ATTENDANCE_SPREADSHEET_ID = '16JV0UMe4ZUPuKbeEY6mXHD0cgUcgu1FfvhB_f49MQxI';
+// Live spreadsheet IDs. Both script projects (production and sandbox) run the
+// same Code.gs, so without an override the "sandbox" deployment reads and
+// writes the production data. The Script Properties below let the sandbox
+// project point at throwaway copies instead. Unset - as on production - these
+// defaults apply and behaviour is unchanged.
+const TRACKER_SPREADSHEET_ID_DEFAULT = '1bwKOhbzuQPwpTl0r7Go41K71_CrJTLBZWzDymZTzvyo';
+const ATTENDANCE_SPREADSHEET_ID_DEFAULT = '16JV0UMe4ZUPuKbeEY6mXHD0cgUcgu1FfvhB_f49MQxI';
+const SANDBOX_SCRIPT_ID = '1U27pHrKv5ruG12y-tS_QSFHxt4HAe0cEQ7KyDO1egASCTZRbqiNi_CjQ';
+
+let _spreadsheetIds_ = null;
+function spreadsheetIds_() {
+  if (_spreadsheetIds_) return _spreadsheetIds_;
+  let overrides = {};
+  // Honoured only on the sandbox script project. On production a stray Script
+  // Property must never be able to divert live reads and writes into a copy,
+  // so the defaults below apply unconditionally there.
+  if (ScriptApp.getScriptId() === SANDBOX_SCRIPT_ID) {
+    try {
+      overrides = PropertiesService.getScriptProperties().getProperties() || {};
+    } catch (_) {}
+  }
+  _spreadsheetIds_ = {
+    tracker: overrides.TRACKER_SPREADSHEET_ID || TRACKER_SPREADSHEET_ID_DEFAULT,
+    attendance: overrides.ATTENDANCE_SPREADSHEET_ID || ATTENDANCE_SPREADSHEET_ID_DEFAULT
+  };
+  return _spreadsheetIds_;
+}
+
+// One-off helper, run from the Apps Script editor of the SANDBOX project only.
+// Copies both live spreadsheets and repoints this script at the copies. The
+// script-ID guard exists because running this on production would silently
+// divert production writes into a copy.
+function setUpSandboxSpreadsheetCopies() {
+  if (ScriptApp.getScriptId() !== SANDBOX_SCRIPT_ID) {
+    throw new Error('Refusing to run: this is not the sandbox script project.');
+  }
+  const stamp = Utilities.formatDate(new Date(), TZ, 'yyyyMMdd-HHmm');
+  const attendanceCopy = DriveApp.getFileById(ATTENDANCE_SPREADSHEET_ID_DEFAULT).makeCopy('SANDBOX Attendance ' + stamp);
+  const trackerCopy = DriveApp.getFileById(TRACKER_SPREADSHEET_ID_DEFAULT).makeCopy('SANDBOX Tracker ' + stamp);
+  PropertiesService.getScriptProperties().setProperties({
+    ATTENDANCE_SPREADSHEET_ID: attendanceCopy.getId(),
+    TRACKER_SPREADSHEET_ID: trackerCopy.getId()
+  });
+  const message = 'Sandbox now points at copies:'
+    + '\n  Attendance: ' + attendanceCopy.getId()
+    + '\n  Tracker:    ' + trackerCopy.getId();
+  Logger.log(message);
+  return message;
+}
 const APP_URL = 'https://sisg-project.web.app/';
 const TZ = 'Asia/Singapore';
 const FIREBASE_WEB_API_KEY = 'AIzaSyCebQWOHHA89ANpKWVhhxODkgAG6EkWsjM';
@@ -157,13 +204,13 @@ function requireIdentity_(request, trainerOnly) {
 
 let _trackerSpreadsheet_ = null;
 function tracker_() {
-  if (!_trackerSpreadsheet_) _trackerSpreadsheet_ = SpreadsheetApp.openById(TRACKER_SPREADSHEET_ID);
+  if (!_trackerSpreadsheet_) _trackerSpreadsheet_ = SpreadsheetApp.openById(spreadsheetIds_().tracker);
   return _trackerSpreadsheet_;
 }
 
 let _attendanceSpreadsheet_ = null;
 function attendance_() {
-  if (!_attendanceSpreadsheet_) _attendanceSpreadsheet_ = SpreadsheetApp.openById(ATTENDANCE_SPREADSHEET_ID);
+  if (!_attendanceSpreadsheet_) _attendanceSpreadsheet_ = SpreadsheetApp.openById(spreadsheetIds_().attendance);
   return _attendanceSpreadsheet_;
 }
 
@@ -288,15 +335,16 @@ function warmSheetBatchCache_() {
     const trackerMainSheetName = badgeTrackerSheet_().getName();
     const trackerNames = trackerFixedNames.concat([trackerMainSheetName]);
 
-    const attendanceValues = batchGetValues_(ATTENDANCE_SPREADSHEET_ID, attendanceNames);
-    const trackerValues = batchGetValues_(TRACKER_SPREADSHEET_ID, trackerNames);
+    const ids = spreadsheetIds_();
+    const attendanceValues = batchGetValues_(ids.attendance, attendanceNames);
+    const trackerValues = batchGetValues_(ids.tracker, trackerNames);
     if (!attendanceValues || !trackerValues) {
       _batchSheetCache_ = null;
       return;
     }
     _batchSheetCache_ = {};
-    _batchSheetCache_[ATTENDANCE_SPREADSHEET_ID] = attendanceValues;
-    _batchSheetCache_[TRACKER_SPREADSHEET_ID] = trackerValues;
+    _batchSheetCache_[ids.attendance] = attendanceValues;
+    _batchSheetCache_[ids.tracker] = trackerValues;
   } catch (error) {
     _batchSheetCache_ = null;
   }
@@ -3642,9 +3690,7 @@ function doGet(e) {
 }
 
 function doPost(e) {
-  const lock = LockService.getScriptLock();
   try {
-    if (!lock.tryLock(30000)) throw new Error('Server busy. Please try again.');
     const data = JSON.parse(e.postData && e.postData.contents || '{}');
     const action = data.action;
     const trainerAction = [
@@ -3659,18 +3705,36 @@ function doPost(e) {
       'add_instructors', 'set_instructor_active', 'delete_instructor',
       'delete_feedback_log', 'submit_behavior_report', 'delete_behavior_report', 'submit_form_status'
     ].indexOf(action) >= 0;
+    // Identity verification is an external HTTPS round-trip to Google's
+    // Identity Toolkit and touches no spreadsheet, so it runs before the lock
+    // is taken. Holding a global mutex across a network call was the single
+    // largest contributor to the morning check-in queue backing up past the
+    // 30-second tryLock timeout.
     const identity = requireIdentity_(data, trainerAction);
     data.email = identity.email;
-    const result = dispatchPostAction_(action, data, identity);
-    if (action !== 'verify_email') {
+    // student_checkin takes the same script lock itself, around only the
+    // read-existing-then-write section. Taking it here as well would nest the
+    // two acquisitions and put the whole request back under one long hold.
+    if (action === 'student_checkin') {
+      const result = dispatchPostAction_(action, data, identity);
       invalidateTraineeCache_();
       bumpStudentCacheVersion_();
+      return result;
     }
-    return result;
+    const lock = LockService.getScriptLock();
+    if (!lock.tryLock(30000)) throw new Error('Server busy. Please try again.');
+    try {
+      const result = dispatchPostAction_(action, data, identity);
+      if (action !== 'verify_email') {
+        invalidateTraineeCache_();
+        bumpStudentCacheVersion_();
+      }
+      return result;
+    } finally {
+      lock.releaseLock();
+    }
   } catch (error) {
     return fail_(error);
-  } finally {
-    lock.releaseLock();
   }
 }
 
@@ -3728,7 +3792,51 @@ function dispatchPostAction_(action, data, identity) {
   throw new Error('Unknown action: ' + action);
 }
 
+// One pass over the attendance sheet answering both questions the write needs:
+// does this student already have a completed check-in for today, and do they
+// have automatic "No Show" rows this check-in should correct in place?
+//
+// These used to be two separate full-sheet reads (readAttendance_ plus an
+// inline scan), both performed with the global lock held. Merging them halves
+// the sheet I/O inside the critical section.
+//
+// The two original scans used date_() and trackerDueDateKey_() respectively;
+// those are interchangeable, because date_() delegates to trackerDueDateKey_()
+// for every non-Date value and both format Dates the same way. The class-ID
+// predicates did differ (only for a garbage cell that normalises to empty), so
+// both forms are preserved rather than collapsed.
+function attendanceRowConflict_(sheetRows, person, day, classConfig, targetEvent, isMC) {
+  const targetCourseId = normaliseCourseId_(targetEvent.courseId);
+  const completed = [];
+  const noShowIndexes = [];
+  sheetRows.forEach(function (row, index) {
+    if (String(row[2] || '').toLowerCase() !== person.email) return;
+    if (date_(row[5]) !== day) return;
+    const rawClassId = normaliseClassId_(row[10] || DEFAULT_CLASS_ID, true);
+    if (!/^no show$/i.test(String(row[3] || ''))) {
+      // Matches readAttendance_, which falls back to DEFAULT when blank.
+      if ((rawClassId || DEFAULT_CLASS_ID) !== classConfig.id) return;
+      completed.push({ session: attendanceSessionFromRow_(row), courseId: normaliseCourseId_(row[1]) });
+      return;
+    }
+    // Matches the original no-show scan, which did not apply that fallback.
+    if (rawClassId !== classConfig.id) return;
+    if (isMC || normaliseCourseId_(row[1]) === targetCourseId) noShowIndexes.push(index);
+  });
+  let message = '';
+  if (completed.some(function (log) { return log.session === 'MC'; }) || (isMC && completed.length)) {
+    message = 'Attendance is already recorded for today.';
+  } else if (completed.some(function (log) { return log.courseId === targetCourseId; })) {
+    message = targetEvent.attendanceLabel + ' attendance is already recorded today.';
+  }
+  return { message: message, noShowIndexes: noShowIndexes };
+}
+
 function studentCheckin_(data) {
+  // -------------------------------------------------------------------------
+  // Phase 1 - read-only validation, no lock held. None of this writes, so
+  // serialising it only lengthens the queue every other student waits behind.
+  // -------------------------------------------------------------------------
   const access = requireStudentFeature_(data, 'attendanceEnabled');
   const person = access.person;
   const classConfig = access.classConfig;
@@ -3760,17 +3868,22 @@ function studentCheckin_(data) {
   const late = !data.isMC && nowMinutes > targetEvent.attendanceMinutes;
   const comment = String(data.comment || '').trim();
   if (late && !comment) throw new Error('A reason is required for a late check-in.');
-  const existing = readAttendance_(person.email, day).filter(function (log) { return log.classId === classConfig.id; });
-  const existingCompleted = existing.filter(function (log) { return !/^no show$/i.test(String(log.attendance || '')); });
-  if (existingCompleted.some(function (log) { return log.session === 'MC'; }) || (data.isMC && existingCompleted.length)) {
-    throw new Error('Attendance is already recorded for today.');
-  }
-  if (existingCompleted.some(function (log) { return normaliseCourseId_(log.courseId) === normaliseCourseId_(targetEvent.courseId); })) {
-    throw new Error(targetEvent.attendanceLabel + ' attendance is already recorded today.');
-  }
 
+  const sheet = getOrCreateSheet_(attendance_(), SHEETS.attendance, HEADERS.attendance);
+
+  // -------------------------------------------------------------------------
+  // Phase 2 - MC attachment upload, no lock held. Drive I/O is not
+  // race-sensitive, and decoding plus uploading up to 5 MB is the last thing
+  // that should hold a global mutex. MC submissions are rare, so an advisory
+  // duplicate check first keeps an accidental double-submit from orphaning a
+  // file in MC_Uploads; Phase 3 re-checks authoritatively under the lock.
+  // -------------------------------------------------------------------------
   let fileUrl = '';
   if (data.fileData) {
+    const advisory = attendanceRowConflict_(
+      rows_(sheet, HEADERS.attendance.length), person, day, classConfig, targetEvent, data.isMC
+    );
+    if (advisory.message) throw new Error(advisory.message);
     const bytes = Utilities.base64Decode(data.fileData);
     if (bytes.length > 5 * 1024 * 1024) throw new Error('MC attachment must be 5 MB or smaller.');
     const folderIterator = DriveApp.getFoldersByName('MC_Uploads');
@@ -3779,39 +3892,51 @@ function studentCheckin_(data) {
     fileUrl = folder.createFile(Utilities.newBlob(bytes, data.mimeType || 'application/octet-stream', safeName)).getUrl();
   }
 
-  const sheet = getOrCreateSheet_(attendance_(), SHEETS.attendance, HEADERS.attendance);
+  // -------------------------------------------------------------------------
+  // Phase 3 - the genuinely race-sensitive section, under the lock. This is
+  // the same script lock every other writer uses, so writes remain mutually
+  // exclusive; it is simply held for the read-check-write, not the whole
+  // request. The duplicate check and the write happen inside one uninterrupted
+  // hold, so two concurrent check-ins cannot both observe "no existing row".
+  // -------------------------------------------------------------------------
   const attendanceValue = data.isMC ? 'MC' : (late ? 'Late' : 'In Class');
-  const sheetRows = rows_(sheet, HEADERS.attendance.length);
-  const noShowIndexes = [];
-  sheetRows.forEach(function (row, index) {
-    const sameCheckpoint = data.isMC || normaliseCourseId_(row[1]) === normaliseCourseId_(targetEvent.courseId);
-    if (
-      sameCheckpoint
-      && String(row[2] || '').toLowerCase() === person.email
-      && trackerDueDateKey_(row[5], row[5]) === day
-      && normaliseClassId_(row[10] || DEFAULT_CLASS_ID, true) === classConfig.id
-      && /^no show$/i.test(String(row[3] || ''))
-    ) noShowIndexes.push(index);
-  });
-  const noShowIndex = noShowIndexes.length ? noShowIndexes[0] : -1;
-  const attendanceRow = [
-    noShowIndex >= 0 ? sheetRows[noShowIndex][0] : 'LOG-' + Utilities.getUuid().slice(0, 8).toUpperCase(),
-    targetEvent.courseId, person.email, attendanceValue, false,
-    day, time_(now), comment, fileUrl, now, classConfig.id,
-    noShowIndex >= 0 ? 'Student correction after automatic no-show' : 'Student'
-  ];
-  if (data.isMC && noShowIndexes.length) {
-    noShowIndexes.forEach(function (index) {
-      const corrected = attendanceRow.slice();
-      corrected[0] = sheetRows[index][0];
-      corrected[1] = sheetRows[index][1];
-      sheet.getRange(index + 2, 1, 1, HEADERS.attendance.length).setValues([corrected]);
-    });
-  } else if (noShowIndex >= 0) {
-    sheet.getRange(noShowIndex + 2, 1, 1, HEADERS.attendance.length).setValues([attendanceRow]);
-  } else {
-    sheet.appendRow(attendanceRow);
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('Server busy. Please try again.');
+  try {
+    const sheetRows = rows_(sheet, HEADERS.attendance.length);
+    const conflict = attendanceRowConflict_(sheetRows, person, day, classConfig, targetEvent, data.isMC);
+    if (conflict.message) throw new Error(conflict.message);
+    const noShowIndexes = conflict.noShowIndexes;
+    const noShowIndex = noShowIndexes.length ? noShowIndexes[0] : -1;
+    const attendanceRow = [
+      noShowIndex >= 0 ? sheetRows[noShowIndex][0] : 'LOG-' + Utilities.getUuid().slice(0, 8).toUpperCase(),
+      targetEvent.courseId, person.email, attendanceValue, false,
+      day, time_(now), comment, fileUrl, now, classConfig.id,
+      noShowIndex >= 0 ? 'Student correction after automatic no-show' : 'Student'
+    ];
+    if (data.isMC && noShowIndexes.length) {
+      noShowIndexes.forEach(function (index) {
+        const corrected = attendanceRow.slice();
+        corrected[0] = sheetRows[index][0];
+        corrected[1] = sheetRows[index][1];
+        sheet.getRange(index + 2, 1, 1, HEADERS.attendance.length).setValues([corrected]);
+      });
+    } else if (noShowIndex >= 0) {
+      sheet.getRange(noShowIndex + 2, 1, 1, HEADERS.attendance.length).setValues([attendanceRow]);
+    } else {
+      sheet.appendRow(attendanceRow);
+    }
+    // Push the write out before releasing, so the next holder's read cannot
+    // observe stale rows and admit a duplicate.
+    SpreadsheetApp.flush();
+  } finally {
+    lock.releaseLock();
   }
+
+  // -------------------------------------------------------------------------
+  // Phase 4 - confirmation email, no lock held. Not race-sensitive, and
+  // already best-effort.
+  // -------------------------------------------------------------------------
   const session = data.isMC ? 'MC' : requestedSession;
   try {
     MailApp.sendEmail(
