@@ -1,18 +1,20 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() { return request.auth != null; }
+
+    // ---------- existing rules (kept as they were) ----------
+    function signedInAny() { return request.auth != null; }
     function approved() {
-      return signedIn() && request.auth.token.email in [
+      return signedInAny() && request.auth.token.email in [
         'leo@satoo.me', 'leo@street-smart.sg',
         'mikan23seijin@gmail.com', 'sato87307@gapps.uwcsea.edu.sg',
         'ponkichi23@outlook.com'
       ];
     }
-    function trainer() { return signedIn() && request.auth.token.email == 'leo@street-smart.sg'; }
+    function trainer() { return signedInAny() && request.auth.token.email == 'leo@street-smart.sg'; }
 
     match /trainees/{email} {
-      allow read, write: if signedIn() && (request.auth.token.email == email || trainer());
+      allow read, write: if signedInAny() && (request.auth.token.email == email || trainer());
     }
     match /settings/{document} {
       allow read: if approved();
@@ -22,6 +24,56 @@ service cloud.firestore {
       allow read: if approved();
       allow write: if trainer();
     }
+
+    // ---------- SISG attendance check-in ----------
+    function signedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    function me() { return request.auth.token.email.lower(); }
+    function rosterDoc() {
+      return get(/databases/$(database)/documents/roster/$(me())).data;
+    }
+
+    match /roster/{email} {
+      allow read: if signedIn() && email == me();
+      allow write: if false;
+    }
+
+    match /sessions/{id} {
+      allow read: if signedIn() && rosterDoc().active == true;
+      allow write: if false;
+    }
+
+    match /attendance/{id} {
+      allow read: if signedIn() && resource.data.email == me();
+      allow create: if validCheckin(id);
+      allow update, delete: if false;
+    }
+
+    function validCheckin(id) {
+      let d = request.resource.data;
+      let r = rosterDoc();
+      let s = get(/databases/$(database)/documents/sessions/$(d.classId + '__' + d.courseKey)).data;
+      return signedIn()
+        && d.keys().hasOnly(['email', 'classId', 'courseKey', 'courseId', 'status', 'comment', 'createdAt'])
+        && d.email == me()
+        && id == d.classId + '__' + d.courseKey + '__' + me()
+        && r.active == true
+        && d.classId in r.classIds
+        && s.published == true
+        && s.attendanceEnabled == true
+        && request.time >= s.opensAt
+        && request.time < s.closesAt
+        && d.createdAt == request.time
+        && d.comment is string && d.comment.size() <= 500
+        && (d.status == 'MC'
+            || (request.time > s.dueAt
+                ? (d.status == 'Late' && d.comment.trim().size() > 0)
+                : d.status == 'In Class'));
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
-

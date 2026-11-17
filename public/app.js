@@ -328,11 +328,27 @@ window.renderMonthlyDeliveryCalendar = function renderMonthlyDeliveryCalendar(ca
   }
 };
 
+window.localCheckins = window.localCheckins || {};
+window.markLocalCheckin = function markLocalCheckin(courseId, isMC) {
+  if (isMC) window.localCheckins.MC = true;
+  else window.localCheckins[courseId] = true;
+  if (window.lastAttendanceCalendar) window.renderAttendanceSignal(window.lastAttendanceCalendar);
+};
+
 window.renderAttendanceSignal = function renderAttendanceSignal(calendar = {}) {
   const signal = document.getElementById('todaySessionSignal');
   const checkpoints = document.getElementById('attendanceCheckpointList');
   const select = document.getElementById('attendanceSession');
   const todayEvents = Array.isArray(calendar.todayEvents) ? calendar.todayEvents : [];
+  // Firestore check-ins reach the sheet about a minute later, so remember them locally.
+  window.lastAttendanceCalendar = calendar;
+  const localCheckins = window.localCheckins || {};
+  todayEvents.forEach(event => {
+    if (localCheckins.MC) { event.state = 'excused'; event.canCheckIn = false; }
+    else if (localCheckins[event.courseId]) { event.state = 'submitted'; event.canCheckIn = false; }
+  });
+  const actionable = calendar.actionableEvent;
+  if (actionable && (localCheckins.MC || localCheckins[actionable.courseId])) calendar.actionableEvent = null;
   if (signal) {
     if (!todayEvents.length) {
       signal.textContent = 'No published session today · Attendance is closed';
@@ -589,42 +605,6 @@ window.renderPortalLinks = function renderPortalLinks(links = {}) {
 };
 
 
-// Reflects the student's own "I have completed this form" state. The same
-// values drive the trainer's Form Submission Status table, which reads the
-// Form Submissions sheet, so marking here shows up there on the trainer's
-// next load.
-window.renderFormSubmissions = function renderFormSubmissions(submissions = {}) {
-  document.querySelectorAll('[data-form-done]').forEach(input => {
-    const key = input.dataset.formDone;
-    const done = submissions[key] === true;
-    input.checked = done;
-    input.disabled = false;
-    const wrapper = input.closest('[data-form-card]');
-    const label = wrapper && wrapper.querySelector('[data-form-done-label]');
-    if (label) label.textContent = done ? 'Marked as completed' : 'I have completed this form';
-    if (label) label.className = done
-      ? 'text-sm font-semibold text-green-700'
-      : 'text-sm font-medium text-slate-600';
-  });
-};
-
-window.markFormSubmitted = async function markFormSubmitted(formKey, input) {
-  const desired = input.checked;
-  input.disabled = true;
-  try {
-    await apiPost('submit_form_status', { formKey, status: desired });
-    window.studentFormSubmissions = Object.assign({}, window.studentFormSubmissions, { [formKey]: desired });
-    window.renderFormSubmissions(window.studentFormSubmissions);
-    window.showToast(desired ? 'Marked as completed. Your trainer can see this.' : 'Unmarked.', 'success');
-  } catch (error) {
-    // Put the checkbox back where it was so it never shows a state the sheet
-    // does not actually hold.
-    input.checked = !desired;
-    input.disabled = false;
-    window.showToast(error.message, 'error');
-  }
-};
-
 function projectEscapeHtml(value) {
   return String(value == null ? '' : value).replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
 }
@@ -824,6 +804,40 @@ async function apiPost(action, extra = {}) {
   return result;
 }
 
+window.applyFormSubmissions = function applyFormSubmissions(map = {}) {
+  document.querySelectorAll('[data-form-done]').forEach(box => {
+    const done = map[box.dataset.formDone] === true;
+    box.checked = done;
+    window.paintFormDone(box, done);
+  });
+};
+
+window.paintFormDone = function paintFormDone(box, done) {
+  const label = box.parentElement && box.parentElement.querySelector('[data-form-done-label]');
+  if (!label) return;
+  label.textContent = done ? 'Completed' : 'I have completed this form';
+  label.className = `text-sm font-medium ${done ? 'text-green-700' : 'text-slate-600'}`;
+};
+
+window.markFormSubmitted = async function markFormSubmitted(formKey, checkbox) {
+  if (!window.verifiedStudentName) {
+    checkbox.checked = !checkbox.checked;
+    return window.showToast('Please sign in first.', 'error');
+  }
+  const done = checkbox.checked;
+  checkbox.disabled = true;
+  try {
+    const result = await apiPost('submit_form_status', { formKey, status: done });
+    window.paintFormDone(checkbox, done);
+    window.showToast(result.message || 'Status updated.', 'success');
+  } catch (error) {
+    checkbox.checked = !done;
+    window.showToast(error.message, 'error');
+  } finally {
+    checkbox.disabled = false;
+  }
+};
+
 window.loadStudentData = async function loadStudentData(email) {
   window.showLoading('Loading your dashboard…');
   try {
@@ -849,8 +863,7 @@ window.loadStudentData = async function loadStudentData(email) {
     window.applyExamStatus(data.exam || {});
     window.renderCourseCalendar(data.calendar || {}, data.weeklyResources || []);
     window.renderPortalLinks(data.portalLinks || {});
-    window.studentFormSubmissions = data.formSubmissions || {};
-    window.renderFormSubmissions(window.studentFormSubmissions);
+    window.applyFormSubmissions(data.formSubmissions || {});
     window.renderExamResults(data.examResults || {});
     window.renderProjectWorkspace(data.projects || {});
     window.renderEarnedBadges(data.badges || progress.badges || [], data.badgeSync || {});
@@ -927,11 +940,12 @@ window.submitAttendance = async function submitAttendance() {
   window.setButtonLoading(button, true);
   window.showLoading('Submitting your attendance…');
   try {
-    const payload = { courseId, session, comment, isMC: false };
-    const result = await apiPost('student_checkin', payload);
+    const result = await window.firestoreCheckin({
+      classId: window.selectedStudentClassId || 'DEFAULT', courseId, comment, isMC: false
+    });
+    window.markLocalCheckin(courseId, false);
     window.showToast(result.message || 'Check-in recorded.', 'success');
     document.getElementById('attendanceComment').value = '';
-    await window.loadStudentData(window.verifiedStudentEmail);
   } catch (error) {
     console.error(error);
     window.showToast(error.message, 'error');
@@ -953,11 +967,12 @@ window.submitMC = async function submitMC() {
   window.setButtonLoading(button, true);
   window.showLoading('Submitting your MC check-in…');
   try {
-    const payload = { courseId, session, comment, isMC: true };
-    const result = await apiPost('student_checkin', payload);
+    const result = await window.firestoreCheckin({
+      classId: window.selectedStudentClassId || 'DEFAULT', courseId, comment, isMC: true
+    });
+    window.markLocalCheckin(courseId, true);
     window.showToast(result.message || 'MC check-in recorded.', 'success');
     document.getElementById('attendanceComment').value = '';
-    await window.loadStudentData(window.verifiedStudentEmail);
   } catch (error) {
     console.error(error);
     window.showToast(error.message, 'error');
