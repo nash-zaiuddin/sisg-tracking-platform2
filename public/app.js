@@ -801,6 +801,7 @@ async function apiPost(action, extra = {}) {
   if (!response.ok) throw new Error(`Apps Script returned HTTP ${response.status}.`);
   const result = await response.json();
   if (result.status !== 'success') throw new Error(result.message || 'The request failed.');
+  window.lastWriteAt = Date.now();
   return result;
 }
 
@@ -842,19 +843,25 @@ window.loadStudentData = async function loadStudentData(email) {
   window.showLoading('Loading your dashboard…');
   try {
     if (window.getFirebaseToken) window.firebaseIdToken = await window.getFirebaseToken();
-    const url = new URL(window.GAS_URL);
-    url.searchParams.set('apiKey', window.API_KEY);
-    url.searchParams.set('action', 'get_student');
-    url.searchParams.set('email', email);
-    url.searchParams.set('authToken', window.firebaseIdToken);
-    if (window.selectedStudentClassId && window.studentClassManuallySelected) {
-      url.searchParams.set('classId', window.selectedStudentClassId);
+    let data = null;
+    const manualClass = window.selectedStudentClassId && window.studentClassManuallySelected;
+    if (!manualClass && window.firestoreStudentView) {
+      try { data = await window.firestoreStudentView(); }
+      catch (err) { console.warn('Dashboard snapshot unavailable, using Apps Script.', err); }
     }
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Dashboard data returned HTTP ${response.status}.`);
-    const result = await response.json();
-    if (result.status !== 'success') throw new Error(result.message || 'Dashboard data could not be loaded.');
-    const data = result.data;
+    if (!data) {
+      const url = new URL(window.GAS_URL);
+      url.searchParams.set('apiKey', window.API_KEY);
+      url.searchParams.set('action', 'get_student');
+      url.searchParams.set('email', email);
+      url.searchParams.set('authToken', window.firebaseIdToken);
+      if (manualClass) url.searchParams.set('classId', window.selectedStudentClassId);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Dashboard data returned HTTP ${response.status}.`);
+      const result = await response.json();
+      if (result.status !== 'success') throw new Error(result.message || 'Dashboard data could not be loaded.');
+      data = result.data;
+    }
     const progress = data.progress || {};
     window.renderStudentClassSelector(data.classes || [], data.selectedClass || {});
     const skills = document.getElementById('skillsUrl');

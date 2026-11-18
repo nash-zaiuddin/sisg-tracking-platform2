@@ -39,6 +39,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /studentView/{email} {
+      allow read: if signedIn() && email == me() && rosterDoc().active == true;
+      allow write: if false;
+    }
+
     match /sessions/{id} {
       allow read: if signedIn() && rosterDoc().active == true;
       allow write: if false;
