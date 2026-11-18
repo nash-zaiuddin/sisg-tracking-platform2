@@ -4,7 +4,7 @@
 // to the normal Apps Script load.
 import { getApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+import { getFirestore, doc, getDoc, collection, query, where, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
 const MAX_AGE_MS = 45 * 60 * 1000;
 
@@ -41,4 +41,16 @@ window.firestoreTeacherView = async function firestoreTeacherView(monthKey, minB
     return data;
   }
   return null;
+};
+
+// Live list of the files each project group has uploaded (projectFiles/*). Returns an unsubscribe function.
+window.watchProjectFiles = function watchProjectFiles(classId, callback) {
+  let app;
+  try { app = getApp('trainer-app'); } catch (_) { return () => {}; }
+  if (!getAuth(app).currentUser) return () => {};
+  return onSnapshot(
+    query(collection(getFirestore(app), 'projectFiles'), where('classId', '==', classId)),
+    snap => callback(snap.docs.map(d => Object.assign({ id: d.id }, d.data()))),
+    err => console.warn('Project files unavailable.', err)
+  );
 };

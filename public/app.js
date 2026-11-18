@@ -666,21 +666,14 @@ window.renderProjectWorkspace = function renderProjectWorkspace(workspace = {}) 
       </div>
       <div class="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
         <h4 class="font-bold text-slate-900">Group submission</h4>
-        <p class="mt-1 text-xs leading-5 text-slate-500">Any member can submit. New submissions remain in the group history.</p>
-        ${latest ? `<div class="mt-3 rounded-xl bg-white p-3"><p class="text-xs font-semibold text-emerald-700">Latest submission · ${projectEscapeHtml(latest.status || 'Submitted')}</p><div class="mt-2 flex flex-wrap gap-2">${latestLinks}</div>${latest.notes ? `<p class="mt-2 text-xs text-slate-500">${projectEscapeHtml(latest.notes)}</p>` : ''}</div>` : ''}
-        <div class="mt-4 grid gap-3 sm:grid-cols-2">
-          <input data-field="submissionUrl" type="url" placeholder="Main submission / workbook URL" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm">
-          <input data-field="deckUrl" type="url" placeholder="Presentation deck URL" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm">
-          <input data-field="demoUrl" type="url" placeholder="POC / demo URL" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm">
-          <input data-field="repositoryUrl" type="url" placeholder="Repository URL" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm">
-        </div>
-        <textarea data-field="submissionNotes" rows="3" placeholder="Submission notes" class="mt-3 w-full resize-none rounded-xl border border-slate-200 bg-white p-3 text-sm"></textarea>
-        <button type="button" onclick="submitProjectSubmission(this)" class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 sm:w-auto sm:px-8"><i data-lucide="upload-cloud" class="h-4 w-4"></i>Submit for group</button>
+        <p class="mt-1 text-xs leading-5 text-slate-500">Any member of your group can add or remove files, links and notes. Everything saves as you add it, and you can come back and add more any time.</p>
+        <div data-project-files data-class-id="${projectEscapeHtml(assignment.classId || '')}" data-group-id="${projectEscapeHtml(assignment.groupId || '')}" data-assignment-id="${projectEscapeHtml(assignment.assignmentId || '')}" class="mt-4"></div>
       </div>`;
     list.appendChild(card);
   });
   host.appendChild(list);
   lucide.createIcons({ root: host });
+  if (window.mountProjectFiles) host.querySelectorAll('[data-project-files]').forEach(el => window.mountProjectFiles(el));
 };
 
 
@@ -978,7 +971,7 @@ window.submitProjectSubmission = function submitProjectSubmission(button) {
   if (!card) return;
   const value = field => (card.querySelector(`[data-field="${field}"]`) || {}).value || '';
   const payload = { assignmentId:card.dataset.projectAssignment, submissionUrl:value('submissionUrl').trim(), deckUrl:value('deckUrl').trim(), demoUrl:value('demoUrl').trim(), repositoryUrl:value('repositoryUrl').trim(), notes:value('submissionNotes').trim() };
-  if (![payload.submissionUrl,payload.deckUrl,payload.demoUrl,payload.repositoryUrl].some(Boolean)) return window.showToast('Add at least one project link.', 'error');
+  if (![payload.submissionUrl,payload.deckUrl,payload.demoUrl,payload.repositoryUrl,payload.notes].some(Boolean)) return window.showToast('Add a link or a note first.', 'error');
   studentInstant({
     action:'submit_project_submission', extra:payload, label:'Submitting your group project…',
     apply:() => {

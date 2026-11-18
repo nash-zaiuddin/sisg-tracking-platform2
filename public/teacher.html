@@ -535,6 +535,8 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
                 <div><h2>Submission</h2><p>Group submissions are shared across the team.</p></div>
               </div>
               <div id="projectSubmissionSummary" class="summary-grid"></div>
+              <h3 style="margin:20px 0 0;font-size:15px">Files, links and notes from groups</h3>
+              <div id="projectFileList" class="list"></div>
               <div id="projectSubmissionList" class="list"></div>
             </div>
           </section>
@@ -912,7 +914,7 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       const legs = session === 'Both'
         ? [
             { suffix:'-AM', session:'Morning', startTime:'09:00', attendanceTime:'09:00', checkInOpens:'08:30', attendanceLabel:'Lesson start' },
-            { suffix:'-PM', session:'Afternoon', startTime:'13:00', attendanceTime:'13:00', checkInOpens:'12:30', attendanceLabel:'Lesson end' }
+            { suffix:'-PM', session:'Afternoon', startTime:'13:00', attendanceTime:'13:00', checkInOpens:'12:30', attendanceLabel:'Lesson start' }
           ].map(leg => Object.assign({}, leg, { courseId:baseId.endsWith(leg.suffix) ? baseId : baseId + leg.suffix }))
         : [{ courseId:baseId, session, startTime:document.getElementById('courseStart').value, attendanceTime:document.getElementById('courseAttendanceTime').value, checkInOpens:document.getElementById('courseOpens').value, attendanceLabel:document.getElementById('courseAttendanceLabel').value }];
       legs.forEach(leg => {
@@ -1333,12 +1335,13 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
     function saveClassExamLinks() { saveLinksInstant_('save_class_exam_links', 'examLinksByClass', 'classExamLinkEditor'); }
 
     // ---------- Overview: verify attendance ----------
-    function markAcknowledgedLocal_(email, classId) {
+    function markAcknowledgedLocal_(email, classId, courseId) {
       const target = String(email || '').toLowerCase();
       (teacherData.trainees || []).forEach(student => {
         if (target && String(student.email || '').toLowerCase() !== target) return;
         (student.attendanceRecords || []).forEach(record => {
           if (classId && classId !== 'ALL' && record.classId !== classId) return;
+          if (courseId && record.courseId !== courseId) return;
           if (/^no show$/i.test(record.attendance || '')) return;
           record.acknowledged = true;
         });
@@ -1346,14 +1349,15 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       renderOverview();
       lucide.createIcons();
     }
-    function acknowledgeAttendance(email, classId) {
+    function acknowledgeAttendance(email, classId, courseId) {
       const scope = classId && classId !== 'ALL' ? classNameFor(classId) : 'all classes';
-      if (!confirm(`Verify this student's pending attendance for ${scope} today?`)) return;
+      const what = courseId ? 'this check-in' : "this student's pending attendance";
+      if (!confirm(`Verify ${what} for ${scope} today?`)) return;
       instantSave({
         action:'teacher_acknowledge',
-        extra:{ studentEmail:email, classId:classId || 'ALL' },
+        extra:{ studentEmail:email, classId:classId || 'ALL', courseId:courseId || '' },
         refreshTrainees:true,
-        apply:() => markAcknowledgedLocal_(email, classId),
+        apply:() => markAcknowledgedLocal_(email, classId, courseId),
         reconcile:() => false
       });
     }
@@ -1652,7 +1656,7 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       lucide.createIcons();
     }
 
-    function attendanceCheckpointBadge(session, attendanceRecords) {
+    function attendanceCheckpointBadge(session, attendanceRecords, email, classId) {
       const record = (attendanceRecords || []).find(r => r.courseId === session.courseId) || null;
       const label = `<span class="badge neutral">${escapeHtml(session.attendanceLabel)} ${escapeHtml(session.attendanceTime)}</span>`;
       if (!record) {
@@ -1660,14 +1664,22 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       }
       const isNoShowRecord = /^no show$/i.test(record.attendance || '');
       const isLateRecord = /^late$/i.test(record.attendance || '');
+      const isMcRecord = /^mc$|^medical certificate$/i.test(record.attendance || '') || record.session === 'MC';
       let statusBadge;
       if (isNoShowRecord) statusBadge = '<span class="badge bad">No show</span>';
+      else if (isMcRecord) statusBadge = `<span class="badge" style="background:#ede9fe;color:#6d28d9">MC</span> ${record.acknowledged ? '<span class="badge ok">Approved</span>' : '<span class="badge wait">Awaiting approval</span>'}`;
       else if (!record.acknowledged) statusBadge = isLateRecord ? '<span class="badge bad">Late · awaiting approval</span>' : '<span class="badge wait">Pending approval</span>';
       else statusBadge = isLateRecord ? '<span class="badge ok">Approved · Late</span>' : '<span class="badge ok">Approved</span>';
-      const reason = isLateRecord
+      const mcFile = isMcRecord && record.fileUrl
+        ? ` <a href="${escapeHtml(record.fileUrl)}" target="_blank" rel="noopener" style="font-size:11px;font-weight:700">View MC</a>`
+        : '';
+      const reason = (isLateRecord || isMcRecord) && (record.comment || isLateRecord)
         ? `<div class="muted" style="font-size:11px;margin-top:2px">Reason: ${escapeHtml((record.comment || '').trim() || 'No reason given')}</div>`
         : '';
-      return `<div class="attendance-checkpoint">${label} ${statusBadge}${reason}</div>`;
+      const verifyBtn = !isNoShowRecord && !record.acknowledged && email
+        ? ` <button class="btn small green" style="padding:2px 10px;font-size:11px" onclick="acknowledgeAttendance('${escapeHtml(email)}','${escapeHtml(classId || 'ALL')}','${escapeHtml(record.courseId || '')}')">Verify</button>`
+        : '';
+      return `<div class="attendance-checkpoint">${label} ${statusBadge}${verifyBtn}${mcFile}${reason}</div>`;
     }
     function renderOverview() {
       const data = filteredTrainees();
@@ -1698,19 +1710,20 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         if (!item.email) {
           attendanceBlock = '<span class="badge neutral">Tracker only · add to Roster for attendance</span>';
         } else if (daySessions.length) {
-          attendanceBlock = daySessions.map(session => attendanceCheckpointBadge(session, attendanceRecords)).join('');
+          attendanceBlock = daySessions.map(session => attendanceCheckpointBadge(session, attendanceRecords, item.email, activeClassId)).join('');
         } else if (attendanceRecords.length) {
           attendanceBlock = attendanceRecords.map(record => attendanceCheckpointBadge({
             attendanceLabel: record.session === 'MC' ? 'MC' : (record.courseId || 'Attendance'),
             attendanceTime: record.time || '',
             courseId: record.courseId
-          }, attendanceRecords)).join('');
+          }, attendanceRecords, item.email, activeClassId)).join('');
         } else {
           attendanceBlock = '<span class="badge neutral">No session today</span>';
         }
-        const verify = anyUnacknowledged
-          ? `<button class="btn small green" onclick="acknowledgeAttendance('${escapeHtml(item.email)}','${escapeHtml(activeClassId)}')">Verify</button>`
-          : '<button class="btn small" disabled>Verify</button>';
+        const pendingCount = attendanceRecords.filter(record => !/^no show$/i.test(record.attendance || '') && !record.acknowledged).length;
+        const verify = pendingCount > 1
+          ? `<button class="btn small green" onclick="acknowledgeAttendance('${escapeHtml(item.email)}','${escapeHtml(activeClassId)}')">Verify all</button>`
+          : (pendingCount === 1 ? '' : '<button class="btn small" disabled>Verify</button>');
         const card = document.createElement('article');
         card.className = 'card';
         card.innerHTML = `
@@ -2156,10 +2169,53 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       document.getElementById('groupProjectNotes').value = item.notes || '';
       document.getElementById('groupProjectActive').checked = item.active !== false;
     }
+    // ---------- group project files (uploaded by students to Google Drive) ----------
+    let projectFilesUnsub = null;
+    let projectFilesClass = '';
+    let projectFilesData = [];
+    function watchProjectFilesForClass() {
+      if (activeClassId === 'ALL' || !window.watchProjectFiles) {
+        if (projectFilesUnsub) { projectFilesUnsub(); projectFilesUnsub = null; }
+        projectFilesClass = ''; projectFilesData = [];
+        renderProjectFiles();
+        return;
+      }
+      if (projectFilesClass === activeClassId) { renderProjectFiles(); return; }
+      if (projectFilesUnsub) projectFilesUnsub();
+      projectFilesClass = activeClassId;
+      projectFilesData = [];
+      projectFilesUnsub = window.watchProjectFiles(activeClassId, docs => { projectFilesData = docs; renderProjectFiles(); });
+      renderProjectFiles();
+    }
+    function renderProjectFiles() {
+      const host = document.getElementById('projectFileList');
+      if (!host) return;
+      if (activeClassId === 'ALL') { host.innerHTML = '<p class="empty">Choose one class to see its uploaded files.</p>'; return; }
+      const groups = (teacherData.classManagement.projectGroups || []).filter(item => item.classId === activeClassId);
+      const sizeText = bytes => { const n = Number(bytes) || 0; return n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`; };
+      const rows = [];
+      groups.forEach(group => {
+        const doc = projectFilesData.find(item => item.groupId === group.id) || { files:[] };
+        const files = (doc.files || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+        if (!files.length) return;
+        rows.push(`<div class="list-row" style="flex-direction:column;align-items:stretch">
+          <div class="user-info"><strong>${escapeHtml(group.name)}</strong><small>${files.length} item${files.length === 1 ? '' : 's'}</small></div>
+          <div style="display:grid;gap:8px;margin-top:10px">${files.map(file => {
+            const when = new Date(file.at || 0).toLocaleString('en-SG',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+            const who = `${escapeHtml(file.byName || file.by || '')} · ${escapeHtml(when)}`;
+            const box = inner => `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#f8fafc">${inner}</div>`;
+            if (file.kind === 'note') return box(`<div class="user-info"><strong>Note</strong><small style="white-space:pre-wrap">${escapeHtml(file.text)}</small><small>${who}</small></div>`);
+            if (file.kind === 'link') return box(`<div class="user-info"><strong>${escapeHtml(file.label || 'Link')}</strong><small>${escapeHtml(file.url)} · ${who}</small></div><a class="btn small secondary" href="${escapeHtml(file.url)}" target="_blank" rel="noopener">Open</a>`);
+            return box(`<div class="user-info"><strong>${escapeHtml(file.name)}</strong><small>${escapeHtml(sizeText(file.size))} · ${who}</small></div><a class="btn small secondary" href="${escapeHtml(file.url)}" target="_blank" rel="noopener">Open</a>`);
+          }).join('')}</div></div>`);
+      });
+      host.innerHTML = rows.length ? rows.join('') : '<p class="empty">No group has uploaded files yet.</p>';
+    }
     function renderProjectManager() {
       const hint = document.getElementById('projectAdminHint');
       if (!hint) return;
       const disabled = activeClassId === 'ALL';
+      watchProjectFilesForClass();
       ['saveProjectGroupBtn','saveProjectGroupAssignmentsBtn','saveProjectBtn','saveGroupProjectBtn'].forEach(id => { document.getElementById(id).disabled = disabled; });
       const groupList = document.getElementById('projectGroupList');
       const assignmentGrid = document.getElementById('projectGroupAssignmentGrid');
@@ -2301,7 +2357,7 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         labelInput.disabled = false;
         attendanceTimeInput.value = morning ? '09:00' : '13:00';
         opensInput.value = morning ? '08:30' : '12:30';
-        labelInput.value = morning ? 'Lesson start' : 'Lesson end';
+        labelInput.value = 'Lesson start';
         startInput.value = morning ? '09:00' : '13:00';
         bothHint.style.display = 'none';
       }
