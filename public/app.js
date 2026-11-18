@@ -683,23 +683,9 @@ window.renderProjectWorkspace = function renderProjectWorkspace(workspace = {}) 
   lucide.createIcons({ root: host });
 };
 
-window.submitProjectSubmission = async function submitProjectSubmission(button) {
-  const card = button && button.closest('[data-project-assignment]');
-  if (!card) return;
-  const value = field => (card.querySelector(`[data-field="${field}"]`) || {}).value || '';
-  const payload = { assignmentId:card.dataset.projectAssignment, submissionUrl:value('submissionUrl').trim(), deckUrl:value('deckUrl').trim(), demoUrl:value('demoUrl').trim(), repositoryUrl:value('repositoryUrl').trim(), notes:value('submissionNotes').trim() };
-  if (![payload.submissionUrl,payload.deckUrl,payload.demoUrl,payload.repositoryUrl].some(Boolean)) return window.showToast('Add at least one project link.', 'error');
-  window.setButtonLoading(button, true);
-  window.showLoading('Submitting your group project…');
-  try {
-    const result = await apiPost('submit_project_submission', payload);
-    window.renderProjectWorkspace(result.data || {});
-    window.showToast(result.message || 'Group project submitted.', 'success');
-  } catch (error) { window.showToast(error.message, 'error'); }
-  finally { window.setButtonLoading(button, false); window.hideLoading(); }
-};
 
 window.renderExamResults = function renderExamResults(examResults = {}) {
+  window.lastExamResults = examResults;
   const history = document.getElementById('examResultHistory');
   if (!history) return;
   const items = Array.isArray(examResults.history) ? examResults.history : [];
@@ -760,6 +746,7 @@ function formatExamDateDisplay(value) {
 }
 
 window.applyExamStatus = function applyExamStatus(exam = {}) {
+  window.lastExam = exam;
   const status = exam.status || 'Unscheduled';
   const statusElement = document.getElementById('examStatus');
   if (statusElement) {
@@ -820,24 +807,6 @@ window.paintFormDone = function paintFormDone(box, done) {
   label.className = `text-sm font-medium ${done ? 'text-green-700' : 'text-slate-600'}`;
 };
 
-window.markFormSubmitted = async function markFormSubmitted(formKey, checkbox) {
-  if (!window.verifiedStudentName) {
-    checkbox.checked = !checkbox.checked;
-    return window.showToast('Please sign in first.', 'error');
-  }
-  const done = checkbox.checked;
-  checkbox.disabled = true;
-  try {
-    const result = await apiPost('submit_form_status', { formKey, status: done });
-    window.paintFormDone(checkbox, done);
-    window.showToast(result.message || 'Status updated.', 'success');
-  } catch (error) {
-    checkbox.checked = !done;
-    window.showToast(error.message, 'error');
-  } finally {
-    checkbox.disabled = false;
-  }
-};
 
 window.loadStudentData = async function loadStudentData(email) {
   window.showLoading('Loading your dashboard…');
@@ -882,58 +851,7 @@ window.loadStudentData = async function loadStudentData(email) {
   }
 };
 
-window.submitExamResult = async function submitExamResult() {
-  if (!window.verifiedStudentName) return window.showToast('Please sign in first.', 'error');
-  const button = document.getElementById('examResultBtn');
-  const examType = document.getElementById('examResultType').value;
-  const scoreValue = document.getElementById('examResultScore').value;
-  const score = Number(scoreValue);
-  const resultUrl = document.getElementById('examResultUrl').value.trim();
-  const notes = document.getElementById('examResultNotes').value.trim();
-  if (scoreValue === '' || !Number.isFinite(score) || score < 0 || score > 100) {
-    return window.showToast('Enter a score between 0 and 100.', 'error');
-  }
-  if (resultUrl) {
-    try { new URL(resultUrl); } catch { return window.showToast('Enter a valid result link or leave it blank.', 'error'); }
-  }
-  window.setButtonLoading(button, true);
-  window.showLoading('Submitting your exam result…');
-  try {
-    const result = await apiPost('submit_exam_result', { examType, score, resultUrl, notes });
-    const data = result.data || {};
-    window.renderExamResults(data.examResults || {});
-    if (data.progress) window.applyProgressSummary(data.progress);
-    window.showToast(result.message || 'Exam result submitted.', 'success');
-    document.getElementById('examResultScore').value = '';
-    document.getElementById('examResultUrl').value = '';
-    document.getElementById('examResultNotes').value = '';
-  } catch (error) {
-    window.showToast(error.message, 'error');
-  } finally {
-    window.setButtonLoading(button, false);
-    window.hideLoading();
-  }
-};
 
-window.syncBadges = async function syncBadges() {
-  if (!window.verifiedStudentName) return window.showToast('Please sign in first.', 'error');
-  const button = document.getElementById('syncBadgesBtn');
-  window.setButtonLoading(button, true);
-  window.showLoading('Syncing your badges…');
-  try {
-    const result = await apiPost('sync_badges');
-    const data = result.data || {};
-    window.renderEarnedBadges(data.badges || [], data.badgeSync || {});
-    if (data.progress) window.applyProgressSummary(data.progress);
-    window.showToast(result.message || 'Badges synced.', 'success');
-  } catch (error) {
-    console.error(error);
-    window.showToast(error.message, 'error');
-  } finally {
-    window.setButtonLoading(button, false);
-    window.hideLoading();
-  }
-};
 
 window.submitAttendance = async function submitAttendance() {
   if (!window.verifiedStudentName) return window.showToast('Please sign in first.', 'error');
@@ -989,51 +907,188 @@ window.submitMC = async function submitMC() {
   }
 };
 
-window.submitForm = async function submitForm(action) {
+// ===== Instant saves (student portal) =====
+// The screen updates straight away, the save runs in the background, and a failed save is undone with a message.
+let pendingStudentSaves = 0;
+let studentSaveChain = Promise.resolve();
+function studentStatus(text, kind) {
+  let el = document.getElementById('studentSaveStatus');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'studentSaveStatus';
+    el.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:9999;padding:10px 16px;border-radius:12px;font:600 13px Inter,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.18);display:none;max-width:320px';
+    document.body.appendChild(el);
+  }
+  if (!text) { el.style.display = 'none'; return; }
+  el.textContent = text;
+  el.style.background = kind === 'error' ? '#fee2e2' : kind === 'ok' ? '#dcfce7' : '#e0e7ff';
+  el.style.color = kind === 'error' ? '#991b1b' : kind === 'ok' ? '#166534' : '#3730a3';
+  el.style.display = 'block';
+}
+window.addEventListener('beforeunload', event => {
+  if (pendingStudentSaves > 0) { event.preventDefault(); event.returnValue = ''; }
+});
+// apply():   changes the screen now; may return an undo() function
+// success(): called with the server result (optional)
+// button:    optional button to show as busy until the save finishes
+function studentInstant({ action, extra, label, apply, success, button }) {
+  let undo = null;
+  try { undo = apply ? apply() : null; } catch (error) { return window.showToast(error.message, 'error'); }
+  pendingStudentSaves++;
+  studentStatus(label || 'Saving…');
+  if (button) window.setButtonLoading(button, true);
+  studentSaveChain = studentSaveChain.then(async () => {
+    try {
+      const result = await apiPost(action, extra || {});
+      pendingStudentSaves--;
+      if (success) success(result);
+      if (pendingStudentSaves === 0) {
+        studentStatus(result.message || 'Saved.', 'ok');
+        setTimeout(() => { if (pendingStudentSaves === 0) studentStatus(''); }, 3000);
+      }
+    } catch (error) {
+      pendingStudentSaves--;
+      console.error(error);
+      if (typeof undo === 'function') { try { undo(); } catch (_) {} }
+      studentStatus('Not saved.', 'error');
+      window.showToast(`Not saved: ${error.message}`, 'error');
+      if (pendingStudentSaves === 0) setTimeout(() => studentStatus(''), 3000);
+    } finally {
+      if (button) window.setButtonLoading(button, false);
+    }
+  });
+  return studentSaveChain;
+}
+
+window.markFormSubmitted = function markFormSubmitted(formKey, checkbox) {
+  if (!window.verifiedStudentName) {
+    checkbox.checked = !checkbox.checked;
+    return window.showToast('Please sign in first.', 'error');
+  }
+  const done = checkbox.checked;
+  window.paintFormDone(checkbox, done);
+  studentInstant({
+    action:'submit_form_status', extra:{ formKey, status:done }, label:'Saving…',
+    apply:() => () => { checkbox.checked = !done; window.paintFormDone(checkbox, !done); }
+  });
+};
+
+window.submitProjectSubmission = function submitProjectSubmission(button) {
+  const card = button && button.closest('[data-project-assignment]');
+  if (!card) return;
+  const value = field => (card.querySelector(`[data-field="${field}"]`) || {}).value || '';
+  const payload = { assignmentId:card.dataset.projectAssignment, submissionUrl:value('submissionUrl').trim(), deckUrl:value('deckUrl').trim(), demoUrl:value('demoUrl').trim(), repositoryUrl:value('repositoryUrl').trim(), notes:value('submissionNotes').trim() };
+  if (![payload.submissionUrl,payload.deckUrl,payload.demoUrl,payload.repositoryUrl].some(Boolean)) return window.showToast('Add at least one project link.', 'error');
+  studentInstant({
+    action:'submit_project_submission', extra:payload, label:'Submitting your group project…',
+    apply:() => {
+      const previous = structuredClone(window.studentProjectWorkspace || {});
+      const next = structuredClone(previous);
+      const target = (next.assignments || []).find(item => item.assignmentId === payload.assignmentId);
+      if (target) {
+        target.latestSubmission = { submissionUrl:payload.submissionUrl, deckUrl:payload.deckUrl, demoUrl:payload.demoUrl, repositoryUrl:payload.repositoryUrl, notes:payload.notes, status:'Submitted' };
+        window.renderProjectWorkspace(next);
+      }
+      return () => window.renderProjectWorkspace(previous);
+    },
+    success:result => { if (result.data) window.renderProjectWorkspace(result.data); }
+  });
+};
+
+window.submitExamResult = function submitExamResult() {
   if (!window.verifiedStudentName) return window.showToast('Please sign in first.', 'error');
-  let button;
+  const examType = document.getElementById('examResultType').value;
+  const scoreValue = document.getElementById('examResultScore').value;
+  const score = Number(scoreValue);
+  const resultUrl = document.getElementById('examResultUrl').value.trim();
+  const notes = document.getElementById('examResultNotes').value.trim();
+  if (scoreValue === '' || !Number.isFinite(score) || score < 0 || score > 100) {
+    return window.showToast('Enter a score between 0 and 100.', 'error');
+  }
+  if (resultUrl) {
+    try { new URL(resultUrl); } catch { return window.showToast('Enter a valid result link or leave it blank.', 'error'); }
+  }
+  const scoreIds = { pca_sample:'pcaScore', mock_exam_1:'mock1Score', mock_exam_2:'mock2Score' };
+  studentInstant({
+    action:'submit_exam_result', extra:{ examType, score, resultUrl, notes }, label:'Submitting your exam result…',
+    apply:() => {
+      const previousHistory = structuredClone(window.lastExamResults || { history:[] });
+      const scoreElement = document.getElementById(scoreIds[examType]);
+      const previousScore = scoreElement ? scoreElement.textContent : '';
+      const history = [{ type:examType, score, maxScore:100, submittedAt:new Date().toISOString() }].concat(previousHistory.history || []);
+      window.renderExamResults(Object.assign({}, previousHistory, { history }));
+      if (scoreElement) scoreElement.textContent = String(score);
+      ['examResultScore','examResultUrl','examResultNotes'].forEach(id => { document.getElementById(id).value = ''; });
+      return () => {
+        window.renderExamResults(previousHistory);
+        if (scoreElement) scoreElement.textContent = previousScore;
+        document.getElementById('examResultType').value = examType;
+        document.getElementById('examResultScore').value = scoreValue;
+        document.getElementById('examResultUrl').value = resultUrl;
+        document.getElementById('examResultNotes').value = notes;
+      };
+    },
+    success:result => {
+      const data = result.data || {};
+      if (data.examResults) window.renderExamResults(data.examResults);
+      if (data.progress) window.applyProgressSummary(data.progress);
+    }
+  });
+};
+
+window.syncBadges = function syncBadges() {
+  if (!window.verifiedStudentName) return window.showToast('Please sign in first.', 'error');
+  studentInstant({
+    action:'sync_badges', label:'Syncing your badges… you can keep using the portal.', button:document.getElementById('syncBadgesBtn'),
+    success:result => {
+      const data = result.data || {};
+      window.renderEarnedBadges(data.badges || [], data.badgeSync || {});
+      if (data.progress) window.applyProgressSummary(data.progress);
+    }
+  });
+};
+
+window.submitForm = function submitForm(action) {
+  if (!window.verifiedStudentName) return window.showToast('Please sign in first.', 'error');
   const payload = {};
+  let apply = null;
+  let label = 'Saving…';
+  let success = null;
+  let button = null;
   if (action === 'register_pca_exam') {
-    button = document.getElementById('pcaBtn');
     payload.examStatus = document.getElementById('pcaExamStatus').value;
     payload.examDate = document.getElementById('examDate').value;
     payload.examVenue = document.getElementById('examVenue').value.trim();
     if (payload.examStatus !== 'Unscheduled' && (!payload.examDate || !payload.examVenue)) {
       return window.showToast('Enter the exam date and venue, or set the status to Unscheduled.', 'error');
     }
+    label = 'Saving your exam status…';
+    apply = () => {
+      const previous = Object.assign({}, window.lastExam || {});
+      window.applyExamStatus({ status:payload.examStatus, date:payload.examDate, venue:payload.examVenue });
+      return () => window.applyExamStatus(previous);
+    };
+    success = result => { if (result.data) window.applyExamStatus(result.data); };
   } else if (action === 'submit_feedback') {
-    button = document.getElementById('feedbackBtn');
     payload.feedbackType = document.getElementById('feedbackType').value;
     payload.feedbackText = document.getElementById('feedbackText').value.trim();
     if (!payload.feedbackText) return window.showToast('Write your feedback before submitting.', 'error');
+    label = 'Sending your feedback…';
+    apply = () => {
+      const box = document.getElementById('feedbackText');
+      box.value = '';
+      return () => { box.value = payload.feedbackText; document.getElementById('feedbackType').value = payload.feedbackType; };
+    };
   } else if (action === 'save_profile') {
-    button = document.getElementById('saveProfileBtn');
     payload.skillsUrl = document.getElementById('skillsUrl').value.trim();
     try { new URL(payload.skillsUrl); } catch { return window.showToast('Enter a valid profile URL.', 'error'); }
-  }
-  window.setButtonLoading(button, true);
-  const loadingMessages = {
-    register_pca_exam: 'Saving your exam status…',
-    submit_feedback: 'Submitting your feedback…',
-    save_profile: 'Saving and syncing your profile…'
-  };
-  window.showLoading(loadingMessages[action] || 'Saving your changes…');
-  try {
-    const result = await apiPost(action, payload);
-    window.showToast(result.message || 'Saved.', 'success');
-    if (action === 'submit_feedback') document.getElementById('feedbackText').value = '';
-    if (action === 'register_pca_exam' && result.data) {
-      window.applyExamStatus(result.data);
-    }
-    if (action === 'save_profile' && result.data) {
+    label = 'Saving your profile and syncing badges… you can keep using the portal.';
+    button = document.getElementById('saveProfileBtn');
+    success = result => {
+      if (!result.data) return;
       window.renderEarnedBadges(result.data.badges || [], result.data.badgeSync || {});
       if (result.data.progress) window.applyProgressSummary(result.data.progress);
-    }
-  } catch (error) {
-    console.error(error);
-    window.showToast(error.message, 'error');
-  } finally {
-    window.setButtonLoading(button, false);
-    window.hideLoading();
+    };
   }
+  studentInstant({ action, extra:payload, label, apply, success, button });
 };
