@@ -704,6 +704,765 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       return String(value == null ? '' : value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[char]);
     }
     function notify(message) { alert(message); }
+    // ===== INSTANT SAVES (v2) =====
+    let pendingSaves = 0;
+    let saveChain = Promise.resolve();
+    let saveNeedsReload = false;
+    let needsTraineeRefresh = false;
+    let refreshTimer = null;
+    function saveStatus(text, kind) {
+      let el = document.getElementById('saveStatus');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'saveStatus';
+        el.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:9999;padding:10px 16px;border-radius:12px;font:600 13px Inter,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.18);display:none;max-width:340px';
+        document.body.appendChild(el);
+      }
+      if (!text) { el.style.display = 'none'; return; }
+      el.textContent = text;
+      el.style.background = kind === 'error' ? '#fee2e2' : kind === 'ok' ? '#dcfce7' : '#e0e7ff';
+      el.style.color = kind === 'error' ? '#991b1b' : kind === 'ok' ? '#166534' : '#3730a3';
+      el.style.display = 'block';
+    }
+    window.addEventListener('beforeunload', event => {
+      if (pendingSaves > 0) { event.preventDefault(); event.returnValue = ''; }
+    });
+    async function postActionQuiet(action, extra, classId) {
+      const token = await trainerToken();
+      const response = await fetch(GAS_URL, {
+        method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({ apiKey:API_KEY, authToken:token, action, classId, ...extra })
+      });
+      if (!response.ok) throw new Error(`Request returned HTTP ${response.status}.`);
+      const result = await response.json();
+      if (result.status !== 'success') throw new Error(result.message || 'Request failed.');
+      window.lastWriteAt = Date.now();
+      return result;
+    }
+    // Everything an instant save may touch, so a failed save can be undone completely.
+    function snapshotState() {
+      return structuredClone({
+        classManagement: teacherData.classManagement,
+        trainees: teacherData.trainees,
+        weeklyResources: teacherData.weeklyResources,
+        resourceHistory: teacherData.resourceHistory,
+        instructorManagement: teacherData.instructorManagement,
+        feedbackLogs: teacherData.feedbackLogs,
+        behaviorReports: teacherData.behaviorReports
+      });
+    }
+    function restoreState(state) {
+      teacherData.classManagement = state.classManagement;
+      teacherData.trainees = state.trainees;
+      teacherData.weeklyResources = state.weeklyResources;
+      teacherData.resourceHistory = state.resourceHistory;
+      teacherData.instructorManagement = state.instructorManagement;
+      teacherData.feedbackLogs = state.feedbackLogs;
+      teacherData.behaviorReports = state.behaviorReports;
+    }
+    // Redraw with the server's final data, unless you are in the middle of typing.
+    function redrawIfIdle() {
+      const tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      renderClassFilter(); renderAll();
+    }
+    // After saves that change who is in which class, the student cards need fresh data
+    // (progress per class etc.). Wait quietly for the background snapshot to catch up
+    // and swap it in, but never while you are typing in a field.
+    function refreshTraineesWhenReady(builtAfter) {
+      const startedAt = Date.now();
+      clearTimeout(refreshTimer);
+      const attempt = async () => {
+        if (Date.now() - startedAt > 5 * 60000) return;
+        if (pendingSaves > 0) { refreshTimer = setTimeout(attempt, 8000); return; }
+        let snapshot = null;
+        try { snapshot = window.firestoreTeacherView ? await window.firestoreTeacherView(teacherMonthKey, builtAfter) : null; }
+        catch (_) { snapshot = null; }
+        if (!snapshot) { refreshTimer = setTimeout(attempt, 15000); return; }
+        const tag = document.activeElement && document.activeElement.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') { refreshTimer = setTimeout(attempt, 8000); return; }
+        teacherData = snapshot;
+        renderClassFilter();
+        renderAll();
+      };
+      refreshTimer = setTimeout(attempt, 20000);
+    }
+    // apply():     changes teacherData locally and re-renders (runs now; may throw to refuse the change)
+    // reconcile(): optional; gets the server's data once every queued save is done
+    function instantSave({ action, extra, apply, reconcile, refreshTrainees }) {
+      const backup = snapshotState();
+      const sendClassId = activeClassId;
+      try { apply(); }
+      catch (error) { restoreState(backup); return notify(error.message); }
+      pendingSaves++;
+      saveStatus(`Saving ${pendingSaves} change${pendingSaves > 1 ? 's' : ''}…`);
+      saveChain = saveChain.then(async () => {
+        let message = 'Saved.';
+        let failed = false;
+        try {
+          const result = await postActionQuiet(action, extra, sendClassId);
+          message = result.message || message;
+          pendingSaves--;
+          if (refreshTrainees) needsTraineeRefresh = true;
+          if (pendingSaves === 0 && result.data) {
+            let redraw = true;
+            if (reconcile) redraw = reconcile(result.data) !== false;
+            else teacherData.classManagement = result.data;
+            if (redraw) redrawIfIdle();
+          }
+        } catch (error) {
+          failed = true;
+          pendingSaves--;
+          restoreState(backup);                       // put the screen back as it was
+          saveNeedsReload = saveNeedsReload || pendingSaves > 0;
+          renderClassFilter(); renderAll();
+          saveStatus(`Not saved: ${error.message}`, 'error');
+          notify(`This change could not be saved and was undone.\n\n${error.message}`);
+        }
+        if (pendingSaves > 0) { if (!failed) saveStatus(`Saving ${pendingSaves} change${pendingSaves > 1 ? 's' : ''}…`); return; }
+        if (!failed) {
+          saveStatus(message, 'ok');
+          setTimeout(() => { if (pendingSaves === 0) saveStatus(''); }, 3500);
+        }
+        if (saveNeedsReload) { saveNeedsReload = false; needsTraineeRefresh = false; window.lastWriteAt = Date.now(); loadData(); }
+        else if (needsTraineeRefresh) { needsTraineeRefresh = false; refreshTraineesWhenReady(Date.now()); }
+      });
+      return saveChain;
+    }
+    const clientClassId = value => String(value || '').trim().toUpperCase()
+      .replace(/[^A-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+    // ===== end of instant-save helpers =====
+    // ---------- background jobs (emails, badge sync, repair) ----------
+    let pendingJobs = 0;
+    function jobStatus(text, kind) {
+      let el = document.getElementById('jobStatus');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'jobStatus';
+        el.style.cssText = 'position:fixed;right:18px;bottom:68px;z-index:9999;padding:10px 16px;border-radius:12px;font:600 13px Inter,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.18);display:none;max-width:340px';
+        document.body.appendChild(el);
+      }
+      if (!text) { el.style.display = 'none'; return; }
+      el.textContent = text;
+      el.style.background = kind === 'error' ? '#fee2e2' : kind === 'ok' ? '#dcfce7' : '#e0e7ff';
+      el.style.color = kind === 'error' ? '#991b1b' : kind === 'ok' ? '#166534' : '#3730a3';
+      el.style.display = 'block';
+    }
+    window.addEventListener('beforeunload', event => {
+      if (pendingJobs > 0) { event.preventDefault(); event.returnValue = ''; }
+    });
+    // Runs outside the save queue so a long job never holds up your other changes.
+    function runJob(label, action, extra, { refreshCards = false, keepWriteMark = false } = {}) {
+      const before = window.lastWriteAt;
+      pendingJobs++;
+      jobStatus(`${label}…`);
+      postActionQuiet(action, extra || {}, activeClassId).then(result => {
+        if (keepWriteMark) window.lastWriteAt = before;
+        jobStatus(result.message || 'Done.', 'ok');
+        setTimeout(() => jobStatus(''), 6000);
+        if (refreshCards) refreshTraineesWhenReady(Date.now());
+      }).catch(error => {
+        if (keepWriteMark) window.lastWriteAt = before;
+        jobStatus(`${label} failed: ${error.message}`, 'error');
+        notify(`${label} failed.\n\n${error.message}`);
+      }).finally(() => { pendingJobs--; });
+    }
+    function sendAttendanceEmails() {
+      if (!confirm(`Email the attendance link to ${activeClassId === 'ALL' ? 'all registered students' : classNameFor(activeClassId)}?`)) return;
+      runJob('Sending attendance emails', 'send_attendance_emails', { studentPageUrl:STUDENT_PAGE_URL, classId:activeClassId }, { keepWriteMark:true });
+    }
+    function syncAllBadges() {
+      if (!confirm('Fetch all saved public Google Skills profiles?\n\nThis runs in the background and can take a few minutes. You can keep working.')) return;
+      runJob('Syncing badges', 'sync_all_badges', {}, { refreshCards:true });
+    }
+    function repairTrackerRows() {
+      if (!confirm('Scan the Roster and add missing Badge Tracker rows?')) return;
+      runJob('Repairing tracker rows', 'repair_tracker_rows', {}, { refreshCards:true });
+    }
+
+    // ---------- sessions with resources, file edits, behaviour reports ----------
+    function pendingResource_(entry, classId, courseId, weekStart, description, published) {
+      return {
+        id:'pending-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), classId, courseId, weekStart,
+        title:entry.title, url:entry.url || '', fileName:entry.fileName || '', fileUrl:'', description:description.trim(),
+        published, archived:false, scheduleStatus:'scheduled'
+      };
+    }
+    async function saveCourse() {
+      if (activeClassId === 'ALL') return notify('Choose a class before saving a session.');
+      const classId = activeClassId;
+      const session = document.getElementById('courseSession').value;
+      const baseId = document.getElementById('courseId').value.trim();
+      if (!baseId) return notify('Enter a Course/session ID.');
+      const shared = {
+        classId,
+        course:document.getElementById('courseTitle').value.trim(),
+        lessonMode:document.getElementById('courseMode').value,
+        date:document.getElementById('courseDate').value,
+        portalStatus:document.getElementById('courseStatus').value,
+        description:document.getElementById('courseDescription').value.trim(),
+        attendanceEnabled:document.getElementById('courseAttendanceEnabled').checked
+      };
+      if (!shared.course || !shared.date) return notify('Course ID, title and date are required.');
+      let entries;
+      try { entries = await collectResourceEntries_(); } catch (error) { return notify(error.message); }
+      const resourceDescription = document.getElementById('resourceDescription').value;
+      const resourcePublished = document.getElementById('resourcePublished').checked;
+      const legs = session === 'Both'
+        ? [
+            { suffix:'-AM', session:'Morning', startTime:'09:00', attendanceTime:'09:00', checkInOpens:'08:30', attendanceLabel:'Lesson start' },
+            { suffix:'-PM', session:'Afternoon', startTime:'13:00', attendanceTime:'13:00', checkInOpens:'12:30', attendanceLabel:'Lesson end' }
+          ].map(leg => Object.assign({}, leg, { courseId:baseId.endsWith(leg.suffix) ? baseId : baseId + leg.suffix }))
+        : [{ courseId:baseId, session, startTime:document.getElementById('courseStart').value, attendanceTime:document.getElementById('courseAttendanceTime').value, checkInOpens:document.getElementById('courseOpens').value, attendanceLabel:document.getElementById('courseAttendanceLabel').value }];
+      legs.forEach(leg => {
+        instantSave({
+          action:'save_course',
+          extra:Object.assign({}, shared, { courseId:leg.courseId, startTime:leg.startTime, session:leg.session, attendanceTime:leg.attendanceTime, checkInOpens:leg.checkInOpens, attendanceLabel:leg.attendanceLabel }),
+          refreshTrainees:true,
+          apply:() => { upsertCourseLocal_(classId, Object.assign({}, shared, leg)); renderAll(); }
+        });
+      });
+      legs.forEach(leg => entries.forEach(entry => {
+        instantSave({
+          action:'save_weekly_resource',
+          extra:Object.assign({}, entry, { classId, resourceId:'', weekStart:shared.date, courseId:leg.courseId, description:resourceDescription, published:resourcePublished }),
+          apply:() => { (teacherData.resourceHistory = teacherData.resourceHistory || []).push(pendingResource_(entry, classId, leg.courseId, shared.date, resourceDescription, resourcePublished)); renderSessionsAndResources(); },
+          reconcile:data => mergeHistory(classId, data)
+        });
+      }));
+      resetCourseForm();
+    }
+    async function saveResourceInlineEdit(id) {
+      const item = (teacherData.resourceHistory || []).find(resource => resource.id === id);
+      const row = document.querySelector(`[data-resource-row="${id}"]`);
+      if (!item || !row) return;
+      const title = row.querySelector('.inline-edit-title').value.trim();
+      const url = row.querySelector('.inline-edit-url').value.trim();
+      const description = row.querySelector('.inline-edit-description').value.trim();
+      const published = row.querySelector('.inline-edit-published').checked;
+      const file = row.querySelector('.inline-edit-file').files[0];
+      if (!title) return notify('Enter a title.');
+      if (file && file.size > 8 * 1024 * 1024) return notify('File must be 8 MB or smaller.');
+      const extra = { classId:item.classId, resourceId:id, weekStart:item.weekStart, courseId:item.courseId || '', title, url, description, published };
+      try { if (file) Object.assign(extra, { fileName:file.name, mimeType:file.type, fileData:await fileAsBase64(file) }); }
+      catch (error) { return notify(error.message); }
+      const classId = activeClassId;
+      instantSave({
+        action:'save_weekly_resource',
+        extra,
+        apply:() => { Object.assign(item, { title, url, description, published }, file ? { fileName:file.name } : {}); renderSessionsAndResources(); },
+        reconcile:data => mergeHistory(classId, data)
+      });
+    }
+    async function saveBehaviorReport() {
+      const studentEmail = document.getElementById('behaviorReportTrainee').value;
+      if (!studentEmail) return notify('Choose a trainee.');
+      const selectedBehavior = document.getElementById('behaviorReportBehavior').value;
+      if (!selectedBehavior) return notify('Select a behavior from the list.');
+      const otherText = document.getElementById('behaviorReportOther').value.trim();
+      if (selectedBehavior === 'Other' && !otherText) return notify('Describe the behavior in the "Please specify" field.');
+      const behavior = selectedBehavior === 'Other' ? otherText : selectedBehavior;
+      const file = document.getElementById('behaviorReportFile').files[0];
+      if (file && file.size > 8 * 1024 * 1024) return notify('Evidence file must be 8 MB or smaller.');
+      const payload = {
+        studentEmail,
+        date:document.getElementById('behaviorReportDate').value,
+        category:document.getElementById('behaviorReportCategory').value,
+        behavior,
+        evidence:document.getElementById('behaviorReportEvidence').value.trim()
+      };
+      try { if (file) Object.assign(payload, { fileName:file.name, mimeType:file.type, fileData:await fileAsBase64(file) }); }
+      catch (error) { return notify(error.message); }
+      const person = (teacherData.classManagement.roster || []).find(item => item.email === studentEmail.toLowerCase()) || {};
+      instantSave({
+        action:'submit_behavior_report',
+        extra:payload,
+        apply:() => {
+          (teacherData.behaviorReports = teacherData.behaviorReports || []).unshift({
+            id:'pending-' + Date.now(), traineeEmail:studentEmail.toLowerCase(), traineeName:person.name || studentEmail, category:payload.category,
+            behavior, evidence:payload.evidence, date:payload.date, reportedBy:'You', fileUrl:''
+          });
+          resetBehaviorReportForm();
+          renderBehaviorReports();
+        },
+        reconcile:data => { teacherData.behaviorReports = data; return true; }
+      });
+    }
+
+    // ---------- shared helpers for instant saves (all tabs) ----------
+    const cmRows = key => (teacherData.classManagement[key] = teacherData.classManagement[key] || []);
+    const entityKey = (value, fallback) => String(value || fallback || '').trim().replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').toUpperCase().slice(0, 60);
+    const dateLabel = key => { const d = new Date(`${key}T12:00:00`); return isNaN(d) ? '' : d.toLocaleDateString('en-SG', { day:'numeric', month:'short', year:'numeric' }); };
+    const mergeHistory = (classId, data) => {
+      teacherData.resourceHistory = (teacherData.resourceHistory || []).filter(item => item.classId !== classId).concat((data && data.history) || []);
+      return true;
+    };
+
+    // ---------- Badge Management ----------
+    function saveClassBadges() {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      const classId = activeClassId;
+      const catalog = teacherData.classManagement.badgeCatalog || [];
+      const requirements = Array.from(document.querySelectorAll('#classBadgeRequirementGrid .badge-requirement')).filter(row => row.querySelector('.class-badge-choice').checked).map(row => ({
+        trackerColumn:row.querySelector('.class-badge-choice').value,
+        dueDateOverride:row.querySelector('.class-badge-due').value
+      })).filter(item => catalog.some(badge => badge.trackerColumn === item.trackerColumn));
+      instantSave({
+        action:'save_class_badges',
+        extra:{ classId, requirements },
+        refreshTrainees:true,
+        apply:() => {
+          const cls = (teacherData.classManagement.classes || []).find(item => item.id === classId);
+          if (!cls) throw new Error('Class was not found.');
+          const list = requirements.map((item, index) => {
+            const badge = catalog.find(entry => entry.trackerColumn === item.trackerColumn) || {};
+            return Object.assign({}, badge, { classId, trackerColumn:item.trackerColumn, name:badge.name, dueDateOverride:item.dueDateOverride || '', sortOrder:index + 1 });
+          });
+          cls.badgeMode = 'EXPLICIT';
+          cls.badgeRequirements = list;
+          cls.badgeRequirementCount = list.length;
+          teacherData.classManagement.badgeAssignments = (teacherData.classManagement.badgeAssignments || []).filter(item => item.classId !== classId).concat(list);
+          renderAll();
+        }
+      });
+    }
+    function addBadgeDefinition() {
+      const badgeName = document.getElementById('newBadgeName').value.trim();
+      if (!badgeName) return notify('Enter the badge name.');
+      const badgeUrl = document.getElementById('newBadgeUrl').value.trim();
+      const dueDate = document.getElementById('newBadgeDueDate').value;
+      instantSave({
+        action:'save_badge_definition',
+        extra:{ badgeName, badgeUrl, dueDate },
+        refreshTrainees:true,
+        apply:() => {
+          teacherData.classManagement.badgeCatalog.push({ badgeId:'pending-' + Date.now(), trackerColumn:'(saving)', name:badgeName, url:badgeUrl, dueDate, dueDateDisplay:dueDate ? dateLabel(dueDate) : 'not set' });
+          ['newBadgeName','newBadgeUrl','newBadgeDueDate'].forEach(id => { document.getElementById(id).value = ''; });
+          renderAll();
+        }
+      });
+    }
+    function removeBadgeDefinition(badgeId, badgeName) {
+      if (!confirm(`Remove "${badgeName}" from the portal and every class?\n\nExisting tracker completion data will be preserved.`)) return;
+      instantSave({
+        action:'archive_badge_definition',
+        extra:{ badgeId },
+        refreshTrainees:true,
+        apply:() => {
+          const cm = teacherData.classManagement;
+          const badge = (cm.badgeCatalog || []).find(item => item.badgeId === badgeId);
+          cm.badgeCatalog = (cm.badgeCatalog || []).filter(item => item.badgeId !== badgeId);
+          if (badge) {
+            cm.badgeAssignments = (cm.badgeAssignments || []).filter(item => item.trackerColumn !== badge.trackerColumn);
+            (cm.classes || []).forEach(cls => { cls.badgeRequirements = (cls.badgeRequirements || []).filter(item => item.trackerColumn !== badge.trackerColumn); if (cls.badgeMode === 'EXPLICIT') cls.badgeRequirementCount = cls.badgeRequirements.length; });
+          }
+          renderAll();
+        }
+      });
+    }
+
+    // ---------- Groups & projects ----------
+    function saveProjectGroup() {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      const classId = activeClassId;
+      const form = {
+        classId,
+        groupId:document.getElementById('projectGroupId').value,
+        groupName:document.getElementById('projectGroupName').value,
+        notes:document.getElementById('projectGroupNotes').value,
+        active:document.getElementById('projectGroupActive').checked
+      };
+      const name = form.groupName.trim().slice(0, 120);
+      if (!name) return notify('Group name is required.');
+      const id = entityKey(form.groupId, name);
+      if (!id) return notify('Group ID is required.');
+      instantSave({
+        action:'save_project_group',
+        extra:form,
+        apply:() => {
+          const groups = cmRows('projectGroups');
+          const fields = { name, notes:form.notes.trim(), active:form.active !== false };
+          const existing = groups.find(item => item.classId === classId && item.id === id);
+          if (existing) Object.assign(existing, fields); else groups.push(Object.assign({ id, classId }, fields));
+          resetProjectGroupForm();
+          renderAll();
+        }
+      });
+    }
+    function saveProjectGroupAssignments() {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      const classId = activeClassId;
+      const assignments = Array.from(document.querySelectorAll('#projectGroupAssignmentGrid .project-group-assignment')).filter(select => select.value).map(select => ({
+        email:select.dataset.email, name:select.dataset.name, groupId:select.value, role:'Member'
+      }));
+      instantSave({
+        action:'save_project_group_assignments',
+        extra:{ classId, assignments },
+        apply:() => {
+          const members = cmRows('projectGroupMembers').filter(item => item.classId !== classId);
+          assignments.forEach(item => members.push({ classId, groupId:item.groupId, email:item.email, name:item.name, role:item.role, active:true }));
+          teacherData.classManagement.projectGroupMembers = members;
+          renderAll();
+        }
+      });
+    }
+    function saveProjectDefinition() {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      const classId = activeClassId;
+      const form = {
+        classId,
+        projectId:document.getElementById('projectId').value,
+        projectName:document.getElementById('projectName').value,
+        projectType:document.getElementById('projectType').value,
+        dueDate:document.getElementById('projectDueDate').value,
+        description:document.getElementById('projectDescription').value,
+        submissionRequirements:document.getElementById('projectRequirements').value,
+        minimumWorkingFeatures:Number(document.getElementById('projectMinimumFeatures').value || 0),
+        creditLimit:Number(document.getElementById('projectCreditLimit').value || 0),
+        presentationMinutes:Number(document.getElementById('projectPresentationMinutes').value || 0),
+        qaMinutes:Number(document.getElementById('projectQaMinutes').value || 0),
+        published:document.getElementById('projectPublished').checked
+      };
+      const name = form.projectName.trim().slice(0, 160);
+      if (!name) return notify('Project name is required.');
+      const id = entityKey(form.projectId, name);
+      if (!id) return notify('Project ID is required.');
+      instantSave({
+        action:'save_project',
+        extra:form,
+        apply:() => {
+          const projects = cmRows('projects');
+          const fields = {
+            name, type:form.projectType, description:form.description.trim(), dueDate:form.dueDate, dueDateDisplay:form.dueDate ? dateLabel(form.dueDate) : '',
+            submissionRequirements:form.submissionRequirements.trim(), minimumWorkingFeatures:form.minimumWorkingFeatures, presentationMinutes:form.presentationMinutes,
+            qaMinutes:form.qaMinutes, creditLimit:form.creditLimit, published:form.published === true
+          };
+          const existing = projects.find(item => item.classId === classId && item.id === id);
+          if (existing) Object.assign(existing, fields); else projects.push(Object.assign({ id, classId, peerEvaluationEnabled:true }, fields));
+          resetProjectForm();
+          renderAll();
+        }
+      });
+    }
+    function saveGroupProjectAssignment() {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      const classId = activeClassId;
+      const form = {
+        classId,
+        groupId:document.getElementById('groupProjectGroup').value,
+        projectId:document.getElementById('groupProjectProject').value,
+        useCase:document.getElementById('groupProjectUseCase').value,
+        briefUrl:document.getElementById('groupProjectBriefUrl').value,
+        trialAccount:document.getElementById('groupProjectTrialAccount').value,
+        consoleUrl:document.getElementById('groupProjectConsoleUrl').value,
+        presentationOrder:document.getElementById('groupProjectPresentationOrder').value,
+        notes:document.getElementById('groupProjectNotes').value,
+        active:document.getElementById('groupProjectActive').checked
+      };
+      if (!form.groupId) return notify('Select a group.');
+      if (!form.projectId) return notify('Select a project.');
+      instantSave({
+        action:'save_group_project',
+        extra:form,
+        apply:() => {
+          const group = cmRows('projectGroups').find(item => item.classId === classId && item.id === form.groupId);
+          if (!group) throw new Error('Project group was not found.');
+          if (form.active !== false && !group.active) throw new Error('Activate the project group before assigning an active project.');
+          const list = cmRows('groupProjects');
+          const fields = { useCase:form.useCase.trim(), briefUrl:form.briefUrl.trim(), trialAccount:form.trialAccount.trim(), consoleUrl:form.consoleUrl.trim(), presentationOrder:form.presentationOrder.trim(), notes:form.notes.trim(), active:form.active !== false };
+          const existing = list.find(item => item.classId === classId && item.groupId === form.groupId && item.projectId === form.projectId);
+          if (existing) Object.assign(existing, fields);
+          else list.push(Object.assign({ assignmentId:'pending-' + Date.now(), classId, groupId:form.groupId, projectId:form.projectId }, fields));
+          resetGroupProjectForm();
+          renderAll();
+        }
+      });
+    }
+    function deleteProjectGroup(groupId, groupName) {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      if (!confirm(`Permanently delete "${groupName}"?\n\nThis removes the group along with its student assignments, any projects assigned to it, and their submissions.\n\nThis cannot be undone.`)) return;
+      const classId = activeClassId;
+      instantSave({
+        action:'delete_project_group',
+        extra:{ classId, groupId },
+        apply:() => {
+          const cm = teacherData.classManagement;
+          const mine = item => item.classId === classId && item.groupId === groupId;
+          cm.projectGroups = cmRows('projectGroups').filter(item => !(item.classId === classId && item.id === groupId));
+          cm.projectGroupMembers = cmRows('projectGroupMembers').filter(item => !mine(item));
+          cm.groupProjects = cmRows('groupProjects').filter(item => !mine(item));
+          cm.projectSubmissions = cmRows('projectSubmissions').filter(item => !mine(item));
+          resetProjectGroupForm();
+          renderAll();
+        }
+      });
+    }
+    function deleteProjectDefinition(projectId, projectName) {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      if (!confirm(`Permanently delete "${projectName}"?\n\nThis removes the project along with any group assignments and submissions tied to it.\n\nThis cannot be undone.`)) return;
+      const classId = activeClassId;
+      instantSave({
+        action:'delete_project',
+        extra:{ classId, projectId },
+        apply:() => {
+          const cm = teacherData.classManagement;
+          const mine = item => item.classId === classId && item.projectId === projectId;
+          cm.projects = cmRows('projects').filter(item => !(item.classId === classId && item.id === projectId));
+          cm.groupProjects = cmRows('groupProjects').filter(item => !mine(item));
+          cm.projectSubmissions = cmRows('projectSubmissions').filter(item => !mine(item));
+          cm.peerEvaluations = cmRows('peerEvaluations').filter(item => !mine(item));
+          resetProjectForm();
+          renderAll();
+        }
+      });
+    }
+    function deleteGroupProjectAssignment(assignmentId, label) {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      if (!confirm(`Remove the assignment "${label}"?\n\nAny submissions tied to it will also be removed.\n\nThis cannot be undone.`)) return;
+      instantSave({
+        action:'delete_group_project',
+        extra:{ classId:activeClassId, assignmentId },
+        apply:() => {
+          const cm = teacherData.classManagement;
+          cm.groupProjects = cmRows('groupProjects').filter(item => item.assignmentId !== assignmentId);
+          cm.projectSubmissions = cmRows('projectSubmissions').filter(item => item.assignmentId !== assignmentId);
+          renderAll();
+        }
+      });
+    }
+
+    // ---------- Class sessions & resources ----------
+    function upsertCourseLocal_(classId, c) {
+      const courses = cmRows('courses');
+      const fields = {
+        course:c.course, description:c.description, lessonMode:c.lessonMode, date:c.date, dateDisplay:dateLabel(c.date), courseStartTime:c.startTime,
+        session:c.session, attendanceTime:c.attendanceTime, checkInOpens:c.checkInOpens, attendanceLabel:c.attendanceLabel,
+        portalStatus:c.portalStatus, attendanceEnabled:c.attendanceEnabled !== false
+      };
+      const existing = courses.find(item => item.courseId === c.courseId);
+      if (existing) Object.assign(existing, fields, { classId }); else courses.push(Object.assign({ courseId:c.courseId, classId }, fields));
+    }
+    function archiveCourse(courseId) {
+      if (!confirm('Cancel this class session? It will remain visible as cancelled.')) return;
+      instantSave({
+        action:'archive_course',
+        extra:{ courseId },
+        refreshTrainees:true,
+        apply:() => {
+          const course = cmRows('courses').find(item => item.courseId === courseId);
+          if (!course) throw new Error('Class session was not found.');
+          course.portalStatus = 'Cancelled';
+          renderAll();
+        }
+      });
+    }
+    function deleteCourseEntry(courseId) {
+      if (!confirm('Permanently delete this class session?\n\nThis removes it entirely — unlike Cancel, this cannot be undone.')) return;
+      instantSave({
+        action:'delete_course',
+        extra:{ courseId },
+        refreshTrainees:true,
+        apply:() => { teacherData.classManagement.courses = cmRows('courses').filter(item => item.courseId !== courseId); renderAll(); }
+      });
+    }
+    function deleteSelectedCourses() {
+      const ids = Array.from(document.querySelectorAll('#sessionsAndResourcesList .course-select:checked')).map(box => box.dataset.id);
+      if (!ids.length) return;
+      if (!confirm(`Permanently delete ${ids.length} class session(s)?\n\nThis cannot be undone.`)) return;
+      ids.forEach(courseId => instantSave({
+        action:'delete_course',
+        extra:{ courseId },
+        refreshTrainees:true,
+        apply:() => { teacherData.classManagement.courses = cmRows('courses').filter(item => item.courseId !== courseId); renderAll(); }
+      }));
+    }
+    function deleteSelectedResources() {
+      const ids = Array.from(document.querySelectorAll('#sessionsAndResourcesList .resource-select:checked')).map(box => box.dataset.id);
+      if (!ids.length) return;
+      if (!confirm(`Permanently delete ${ids.length} resource(s)?\n\nThis cannot be undone.`)) return;
+      const classId = activeClassId;
+      ids.forEach(id => instantSave({
+        action:'delete_weekly_resource_permanently',
+        extra:{ resourceId:id },
+        apply:() => { teacherData.resourceHistory = (teacherData.resourceHistory || []).filter(item => item.id !== id); renderSessionsAndResources(); },
+        reconcile:data => mergeHistory(classId, data)
+      }));
+    }
+    function archiveResource(resourceId) {
+      if (!confirm('Archive this weekly resource? It will remain visible here as archived.')) return;
+      const classId = activeClassId;
+      instantSave({
+        action:'delete_weekly_resource',
+        extra:{ resourceId },
+        apply:() => {
+          const item = (teacherData.resourceHistory || []).find(resource => resource.id === resourceId);
+          if (item) { item.archived = true; item.scheduleStatus = 'archived'; }
+          renderSessionsAndResources();
+        },
+        reconcile:data => mergeHistory(classId, data)
+      });
+    }
+
+    // ---------- Portal links ----------
+    function readLinkRows_(hostId) {
+      return Array.from(document.querySelectorAll(`#${hostId} .list-row`)).map(row => ({
+        key:row.dataset.key,
+        label:row.querySelector('[data-field="label"]').value,
+        url:row.querySelector('[data-field="url"]').value,
+        description:row.querySelector('[data-field="description"]').value,
+        published:row.querySelector('[data-field="published"]').checked
+      }));
+    }
+    function saveLinksInstant_(action, mapKey, hostId) {
+      if (activeClassId === 'ALL') return notify('Choose one class first.');
+      const classId = activeClassId;
+      const links = readLinkRows_(hostId);
+      instantSave({
+        action,
+        extra:{ classId, links },
+        apply:() => {
+          const cm = teacherData.classManagement;
+          cm[mapKey] = cm[mapKey] || {};
+          cm[mapKey][classId] = cm[mapKey][classId] || {};
+          links.forEach(link => { cm[mapKey][classId][link.key] = { label:link.label, url:link.url, description:link.description, published:link.published === true }; });
+        }
+      });
+    }
+    function saveClassFeedbackLinks() { saveLinksInstant_('save_class_feedback_links', 'feedbackLinksByClass', 'classFeedbackLinkEditor'); }
+    function saveClassExamLinks() { saveLinksInstant_('save_class_exam_links', 'examLinksByClass', 'classExamLinkEditor'); }
+
+    // ---------- Overview: verify attendance ----------
+    function markAcknowledgedLocal_(email, classId) {
+      const target = String(email || '').toLowerCase();
+      (teacherData.trainees || []).forEach(student => {
+        if (target && String(student.email || '').toLowerCase() !== target) return;
+        (student.attendanceRecords || []).forEach(record => {
+          if (classId && classId !== 'ALL' && record.classId !== classId) return;
+          if (/^no show$/i.test(record.attendance || '')) return;
+          record.acknowledged = true;
+        });
+      });
+      renderOverview();
+      lucide.createIcons();
+    }
+    function acknowledgeAttendance(email, classId) {
+      const scope = classId && classId !== 'ALL' ? classNameFor(classId) : 'all classes';
+      if (!confirm(`Verify this student's pending attendance for ${scope} today?`)) return;
+      instantSave({
+        action:'teacher_acknowledge',
+        extra:{ studentEmail:email, classId:classId || 'ALL' },
+        refreshTrainees:true,
+        apply:() => markAcknowledgedLocal_(email, classId),
+        reconcile:() => false
+      });
+    }
+    function acknowledgeAllAttendance() {
+      const scope = activeClassId === 'ALL' ? 'all classes' : classNameFor(activeClassId);
+      if (!confirm(`Verify every pending check-in today for ${scope}?`)) return;
+      const classId = activeClassId;
+      instantSave({
+        action:'teacher_acknowledge_all',
+        extra:{ classId },
+        refreshTrainees:true,
+        apply:() => markAcknowledgedLocal_('', classId),
+        reconcile:() => false
+      });
+    }
+
+    // ---------- Feedback tab ----------
+    function toggleTeacherFormStatus(email, formKey, status) {
+      const target = String(email || '').toLowerCase();
+      instantSave({
+        action:'submit_form_status',
+        extra:{ studentEmail:email, formKey, status },
+        apply:() => {
+          const student = (teacherData.trainees || []).find(item => String(item.email || '').toLowerCase() === target);
+          if (!student) throw new Error('Student was not found.');
+          student.formSubmissions = student.formSubmissions || {};
+          student.formSubmissions[formKey] = status;
+          renderFormSubmissions();
+        },
+        reconcile:() => false
+      });
+    }
+    function deleteFeedbackLogEntry(id) {
+      if (!confirm('Delete this feedback entry?\n\nThis cannot be undone.')) return;
+      instantSave({
+        action:'delete_feedback_log',
+        extra:{ id },
+        apply:() => { teacherData.feedbackLogs = (teacherData.feedbackLogs || []).filter(item => item.id !== id); renderFeedbackLogs(); },
+        reconcile:data => { teacherData.feedbackLogs = data; return true; }
+      });
+    }
+    function deleteBehaviorReportEntry(id) {
+      if (!confirm('Delete this behavior report?\n\nThis cannot be undone.')) return;
+      instantSave({
+        action:'delete_behavior_report',
+        extra:{ id },
+        apply:() => { teacherData.behaviorReports = (teacherData.behaviorReports || []).filter(item => item.id !== id); renderBehaviorReports(); },
+        reconcile:data => { teacherData.behaviorReports = data; return true; }
+      });
+    }
+
+    // ---------- Instructor Management ----------
+    function instructorsInstant_(action, extra, apply) {
+      instantSave({
+        action, extra, apply,
+        reconcile:data => { teacherData.instructorManagement = data; return true; }
+      });
+    }
+    function addInstructors() {
+      const instructors = Array.from(document.querySelectorAll('#newInstructorRows .student-add-row')).map(row => ({
+        instructorName:row.querySelector('.instructor-add-name').value.trim(),
+        instructorEmail:row.querySelector('.instructor-add-email').value.trim()
+      })).filter(item => item.instructorName || item.instructorEmail);
+      if (!instructors.length) return notify('Enter at least one instructor name and email.');
+      instructorsInstant_('add_instructors', { instructors }, () => {
+        const list = (teacherData.instructorManagement = teacherData.instructorManagement || { instructors:[] }).instructors = (teacherData.instructorManagement.instructors || []);
+        const errors = [];
+        let added = 0;
+        instructors.forEach(entry => {
+          const name = entry.instructorName.slice(0, 120);
+          const email = entry.instructorEmail.toLowerCase();
+          if (!name) { errors.push((email || 'Row') + ': name is required.'); return; }
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errors.push(name + ': invalid email address.'); return; }
+          const existing = list.find(item => item.email === email);
+          if (existing) {
+            if (existing.active !== false) { errors.push(name + ': already an instructor.'); return; }
+            existing.name = name; existing.active = true;
+          } else list.push({ name, email, active:true });
+          added++;
+        });
+        if (!added) throw new Error('No instructors were added. ' + errors.join(' '));
+        resetInstructorRows();
+        renderInstructorManagement();
+        if (errors.length) notify('Some rows were skipped:\n' + errors.join('\n'));
+      });
+    }
+    function setInstructorActive_(email, active) {
+      const clean = String(email || '').toLowerCase();
+      instructorsInstant_('set_instructor_active', { instructorEmail:email, active }, () => {
+        const person = ((teacherData.instructorManagement || {}).instructors || []).find(item => item.email === clean);
+        if (!person) throw new Error('Instructor was not found.');
+        person.active = active;
+        renderInstructorManagement();
+      });
+    }
+    function deactivateInstructor(email, name) {
+      if (!confirm(`Remove portal access for ${name}? They will no longer be able to sign in as an instructor. You can reactivate them anytime.`)) return;
+      setInstructorActive_(email, false);
+    }
+    function reactivateInstructor(email) { setInstructorActive_(email, true); }
+    function deleteInstructor(email, name) {
+      if (!confirm(`Permanently delete ${name} from the instructor list?\n\nThis cannot be undone.`)) return;
+      const clean = String(email || '').toLowerCase();
+      instructorsInstant_('delete_instructor', { instructorEmail:email }, () => {
+        teacherData.instructorManagement.instructors = (teacherData.instructorManagement.instructors || []).filter(item => item.email !== clean);
+        renderInstructorManagement();
+      });
+    }
+
     window.showLoading = function showLoading(message = 'Loading…') {
       teacherLoadingDepth += 1;
       const overlay = document.getElementById('teacherLoadingOverlay');
@@ -786,6 +1545,7 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         if (!response.ok) throw new Error(`Request returned HTTP ${response.status}.`);
         const result = await response.json();
         if (result.status !== 'success') throw new Error(result.message || 'Request failed.');
+        window.lastWriteAt = Date.now();
         return result;
       } finally {
         window.hideLoading();
@@ -804,17 +1564,27 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
     }
 
     async function loadData() {
+      await saveChain;
       const loading = document.getElementById('loadingStatus');
       loading.style.display = 'block';
       loading.textContent = 'Loading connected databases…';
       window.showLoading('Loading connected databases…');
       try {
+      let snapshot = null;
+      if (window.firestoreTeacherView) {
+        try { snapshot = await window.firestoreTeacherView(teacherMonthKey); }
+        catch (err) { console.warn('Teacher snapshot unavailable, using Apps Script.', err); }
+      }
+      if (snapshot) {
+        teacherData = snapshot;
+      } else {
         const token = await trainerToken();
         const response = await fetch(`${GAS_URL}?apiKey=${encodeURIComponent(API_KEY)}&authToken=${encodeURIComponent(token)}&month=${encodeURIComponent(teacherMonthKey)}`);
         if (!response.ok) throw new Error(`Database request returned HTTP ${response.status}.`);
         const result = await response.json();
         if (result.status !== 'success') throw new Error(result.message);
         teacherData = result.data;
+      }
         teacherData.classManagement = teacherData.classManagement || { classes:[],memberships:[],badgeCatalog:[],badgeAssignments:[],courses:[],roster:[] };
         teacherData.classManagement.badgeCatalog = teacherData.classManagement.badgeCatalog || [];
         teacherData.classManagement.badgeAssignments = teacherData.classManagement.badgeAssignments || [];
@@ -1002,43 +1772,77 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       deleteButton.dataset.classId = '';
       deleteButton.dataset.className = '';
     }
-    async function saveClass() {
-      try {
-        const result = await postAction('save_class', {
-          classId:document.getElementById('classId').value,
-          className:document.getElementById('className').value,
-          badgeColumns:document.getElementById('classBadgeColumns').value,
-          active:document.getElementById('classActive').checked,
-          portalEnabled:document.getElementById('classPortalEnabled').checked,
-          attendanceEnabled:document.getElementById('classAttendanceEnabled').checked,
-          badgesEnabled:document.getElementById('classBadgesEnabled').checked,
-          resourcesEnabled:document.getElementById('classResourcesEnabled').checked,
-          mockExamsEnabled:document.getElementById('classMockExamsEnabled').checked
-        });
-        teacherData.classManagement = result.data;
-        const savedId = document.getElementById('classId').value.trim().toUpperCase().replace(/[^A-Z0-9_-]+/g,'-');
-        if (savedId) activeClassId = savedId;
-        renderClassFilter();
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
+    function saveClass() {
+      const raw = {
+        classId:document.getElementById('classId').value,
+        className:document.getElementById('className').value,
+        badgeColumns:document.getElementById('classBadgeColumns').value,
+        active:document.getElementById('classActive').checked,
+        portalEnabled:document.getElementById('classPortalEnabled').checked,
+        attendanceEnabled:document.getElementById('classAttendanceEnabled').checked,
+        badgesEnabled:document.getElementById('classBadgesEnabled').checked,
+        resourcesEnabled:document.getElementById('classResourcesEnabled').checked,
+        mockExamsEnabled:document.getElementById('classMockExamsEnabled').checked
+      };
+      const name = String(raw.className || '').trim().slice(0, 100);
+      if (!name) return notify('Class name is required.');
+      const id = clientClassId(raw.classId || name.replace(/[^A-Za-z0-9]+/g, '-'));
+      if (!id) return notify('Class ID is required.');
+      instantSave({
+        action:'save_class',
+        extra:raw,
+        apply:() => {
+          const classes = teacherData.classManagement.classes;
+          const fields = {
+            name,
+            active:raw.active !== false,
+            portalEnabled:raw.portalEnabled !== false,
+            attendanceEnabled:raw.attendanceEnabled !== false,
+            badgesEnabled:raw.badgesEnabled !== false,
+            resourcesEnabled:raw.resourcesEnabled !== false,
+            mockExamsEnabled:raw.mockExamsEnabled !== false,
+            badgeColumns:String(raw.badgeColumns || 'ALL').trim() || 'ALL',
+            updatedAt:new Date().toString()
+          };
+          const existing = classes.find(item => item.id === id);
+          if (existing) Object.assign(existing, fields);
+          else classes.push(Object.assign({ id, badgeMode:'LEGACY', badgeRequirements:[], badgeRequirementCount:null }, fields));
+          activeClassId = id;
+          renderClassFilter();
+          renderAll();
+        }
+      });
     }
-    async function deleteClassRecord(targetClassId, targetClassName) {
+
+    function deleteClassRecord(targetClassId, targetClassName) {
       const deleteButton = document.getElementById('deleteClassBtn');
       const classId = targetClassId || deleteButton.dataset.classId;
       const className = targetClassName || deleteButton.dataset.className || classNameFor(classId);
       if (!classId) return;
       if (classId === 'DEFAULT') return notify('The Default Class cannot be deleted.');
       if (!confirm(`Permanently delete "${className}"?\n\nThis removes the class along with its student membership, badge requirements, feedback/exam links, class sessions, weekly resources, project groups and project data.\n\nAttendance history stays on record but will no longer show a class name.\n\nThis cannot be undone.`)) return;
-      try {
-        const result = await postAction('delete_class', { classId });
-        teacherData.classManagement = result.data;
-        if (activeClassId === classId) activeClassId = 'ALL';
-        renderClassFilter();
-        newClass();
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
+      instantSave({
+        action:'delete_class',
+        extra:{ classId },
+        refreshTrainees:true,
+        apply:() => {
+          const cm = teacherData.classManagement;
+          cm.classes = (cm.classes || []).filter(item => item.id !== classId);
+          ['memberships','badgeAssignments','courses','projectGroups','projectGroupMembers','projects','groupProjects','projectSubmissions','peerEvaluations']
+            .forEach(key => { cm[key] = (cm[key] || []).filter(item => item.classId !== classId); });
+          if (cm.feedbackLinksByClass) delete cm.feedbackLinksByClass[classId];
+          if (cm.examLinksByClass) delete cm.examLinksByClass[classId];
+          teacherData.weeklyResources = (teacherData.weeklyResources || []).filter(item => item.classId !== classId);
+          teacherData.resourceHistory = (teacherData.resourceHistory || []).filter(item => item.classId !== classId);
+          (teacherData.trainees || []).forEach(student => {
+            student.classIds = (student.classIds || []).filter(id => id !== classId);
+          });
+          if (activeClassId === classId) activeClassId = 'ALL';
+          renderClassFilter();
+          newClass();
+          renderAll();
+        }
+      });
     }
     function trackerColumnNumber(value) {
       return String(value || '').trim().toUpperCase().split('').reduce((total,char) => total * 26 + char.charCodeAt(0) - 64, 0);
@@ -1101,50 +1905,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
     function setAllClassBadges(selected) {
       document.querySelectorAll('#classBadgeRequirementGrid .class-badge-choice').forEach(input => { input.checked = selected; });
     }
-    async function saveClassBadges() {
-      if (activeClassId === 'ALL') return notify('Choose one class first.');
-      const requirements = Array.from(document.querySelectorAll('#classBadgeRequirementGrid .badge-requirement')).filter(row => {
-        return row.querySelector('.class-badge-choice').checked;
-      }).map(row => ({
-        trackerColumn:row.querySelector('.class-badge-choice').value,
-        dueDateOverride:row.querySelector('.class-badge-due').value
-      }));
-      try {
-        const result = await postAction('save_class_badges',{classId:activeClassId,requirements});
-        teacherData.classManagement = result.data;
-        renderClassFilter();
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
-    async function addBadgeDefinition() {
-      const badgeName = document.getElementById('newBadgeName').value.trim();
-      if (!badgeName) return notify('Enter the badge name.');
-      try {
-        const result = await postAction('save_badge_definition',{
-          badgeName,
-          badgeUrl:document.getElementById('newBadgeUrl').value.trim(),
-          dueDate:document.getElementById('newBadgeDueDate').value
-        });
-        teacherData.classManagement = result.data;
-        document.getElementById('newBadgeName').value = '';
-        document.getElementById('newBadgeUrl').value = '';
-        document.getElementById('newBadgeDueDate').value = '';
-        renderClassFilter();
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
-    async function removeBadgeDefinition(badgeId,badgeName) {
-      if (!confirm(`Remove "${badgeName}" from the portal and every class?\n\nExisting tracker completion data will be preserved.`)) return;
-      try {
-        const result = await postAction('archive_badge_definition',{badgeId});
-        teacherData.classManagement = result.data;
-        renderClassFilter();
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
     function renderMembership() {
       const host = document.getElementById('memberGrid');
       const inactiveHost = document.getElementById('inactiveRosterList');
@@ -1206,15 +1966,7 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
     function resetStudentRows() {
       document.getElementById('newStudentRows').innerHTML = studentAddRowTemplate_();
     }
-    async function repairTrackerRows() {
-      if (!confirm('Scan the Roster and add missing Badge Tracker rows?')) return;
-      try {
-        const result = await postAction('repair_tracker_rows');
-        notify(result.message);
-        await loadData();
-      } catch (error) { notify(error.message); }
-    }
-    async function addRosterStudent() {
+    function addRosterStudent() {
       const students = Array.from(document.querySelectorAll('#newStudentRows .student-add-row')).map(function (row) {
         return {
           studentName: row.querySelector('.student-add-name').value.trim(),
@@ -1222,52 +1974,115 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         };
       }).filter(function (item) { return item.studentName || item.studentEmail; });
       if (!students.length) return notify('Enter at least one student name and email.');
-      const button = document.getElementById('addRosterStudentBtn');
-      button.disabled = true;
-      try {
-        const result = await postAction('add_roster_students', { students: students });
-        teacherData.classManagement = result.data;
-        resetStudentRows();
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-      finally { button.disabled = false; }
+      const skipped = [];
+      instantSave({
+        action:'add_roster_students',
+        extra:{ students },
+        refreshTrainees:true,
+        apply:() => {
+          const cm = teacherData.classManagement;
+          const roster = cm.roster = cm.roster || [];
+          const memberships = cm.memberships = cm.memberships || [];
+          const seen = {};
+          let changed = 0;
+          students.forEach((entry, position) => {
+            const name = String(entry.studentName || '').trim().slice(0, 120);
+            const email = String(entry.studentEmail || '').trim().toLowerCase();
+            const label = name || email || ('Row ' + (position + 1));
+            if (!name) { skipped.push(label + ': name is required.'); return; }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { skipped.push(label + ': invalid email address.'); return; }
+            if (seen[email]) { skipped.push(label + ': duplicate email in this list.'); return; }
+            seen[email] = true;
+            const existing = roster.find(person => person.email === email);
+            if (existing) {
+              if (existing.active !== false) { skipped.push(label + ': already exists in the Roster.'); return; }
+              existing.name = name; existing.active = true;
+            } else roster.push({ name, email, active:true });
+            changed++;
+            if (activeClassId !== 'ALL') {
+              const row = memberships.find(item => item.classId === activeClassId && item.email === email);
+              if (row) { row.active = true; row.name = name; }
+              else memberships.push({ classId:activeClassId, email, name, active:true, updatedAt:new Date().toString() });
+            }
+          });
+          if (!changed) throw new Error('No students were added. Skipped ' + skipped.length + ': ' + skipped.join(' '));
+          resetStudentRows();
+          renderAll();
+          if (skipped.length) notify('Some rows were skipped:\n' + skipped.join('\n'));
+        }
+      });
     }
-    async function deactivateRosterStudent(email, name) {
+
+    function setRosterActiveInstant(email, active) {
+      const clean = String(email || '').trim().toLowerCase();
+      instantSave({
+        action:'set_roster_active',
+        extra:{ studentEmail:email, active },
+        refreshTrainees:true,
+        apply:() => {
+          const person = (teacherData.classManagement.roster || []).find(item => item.email === clean);
+          if (!person) throw new Error('This trainee was not found in the Roster.');
+          person.active = active;
+          if (!active) teacherData.trainees = (teacherData.trainees || []).filter(item => String(item.email || '').toLowerCase() !== clean);
+          renderAll();
+        }
+      });
+    }
+    function deactivateRosterStudent(email, name) {
       if (!confirm(`Deactivate ${name}? They'll be hidden from active views, but their attendance and badge history stay intact. You can reactivate them anytime.`)) return;
-      try {
-        const result = await postAction('set_roster_active', { studentEmail: email, active: false });
-        teacherData.classManagement = result.data;
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
+      setRosterActiveInstant(email, false);
     }
-    async function reactivateRosterStudent(email) {
-      try {
-        const result = await postAction('set_roster_active', { studentEmail: email, active: true });
-        teacherData.classManagement = result.data;
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
+    function reactivateRosterStudent(email) {
+      setRosterActiveInstant(email, true);
     }
-    async function deleteRosterStudent(email, name) {
+    function deleteRosterStudent(email, name) {
       if (!confirm(`Permanently delete ${name} from the Roster?\n\nThis cannot be undone. Attendance and badge history tied to this email will remain on record, but the trainee will no longer appear anywhere in the portal.`)) return;
-      try {
-        const result = await postAction('delete_roster_student', { studentEmail: email });
-        teacherData.classManagement = result.data;
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
+      const clean = String(email || '').trim().toLowerCase();
+      instantSave({
+        action:'delete_roster_student',
+        extra:{ studentEmail:email },
+        refreshTrainees:true,
+        apply:() => {
+          const cm = teacherData.classManagement;
+          const person = (cm.roster || []).find(item => item.email === clean);
+          if (!person) throw new Error('This trainee was not found in the Roster.');
+          if (person.active !== false) throw new Error('Deactivate this trainee before deleting them.');
+          cm.roster = cm.roster.filter(item => item.email !== clean);
+          cm.memberships = (cm.memberships || []).filter(item => item.email !== clean);
+          teacherData.trainees = (teacherData.trainees || []).filter(item => String(item.email || '').toLowerCase() !== clean);
+          renderAll();
+        }
+      });
     }
-    async function saveClassMembers() {
+
+    function saveClassMembers() {
       if (activeClassId === 'ALL') return notify('Choose one class first.');
+      const classId = activeClassId;
       const memberEmails = Array.from(document.querySelectorAll('#memberGrid input:checked')).map(input => input.value);
-      try {
-        const result = await postAction('save_class_members', { classId:activeClassId, memberEmails });
-        teacherData.classManagement = result.data;
-        await loadData();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
+      instantSave({
+        action:'save_class_members',
+        extra:{ classId, memberEmails },
+        refreshTrainees:true,
+        apply:() => {
+          const cm = teacherData.classManagement;
+          const selected = memberEmails.map(email => String(email || '').trim().toLowerCase());
+          const memberships = cm.memberships = cm.memberships || [];
+          const now = new Date().toString();
+          (cm.roster || []).filter(person => person.active !== false).forEach(person => {
+            const on = selected.indexOf(person.email) >= 0;
+            const row = memberships.find(item => item.classId === classId && item.email === person.email);
+            if (row) { row.active = on; row.name = person.name; row.updatedAt = now; }
+            else memberships.push({ classId, email:person.email, name:person.name, active:on, updatedAt:now });
+          });
+          (teacherData.trainees || []).forEach(student => {
+            const email = String(student.email || '').toLowerCase();
+            if (!email) return;
+            const rows = memberships.filter(item => item.email === email);
+            student.classIds = rows.length ? rows.filter(item => item.active).map(item => item.classId) : ['DEFAULT'];
+          });
+          renderAll();
+        }
+      });
     }
 
     function projectClassRows(key) {
@@ -1288,37 +2103,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       document.getElementById('projectGroupName').value = item.name || '';
       document.getElementById('projectGroupNotes').value = item.notes || '';
       document.getElementById('projectGroupActive').checked = item.active !== false;
-    }
-    async function saveProjectGroup() {
-      if (activeClassId === 'ALL') return notify('Choose one class first.');
-      try {
-        const result = await postAction('save_project_group', {
-          classId:activeClassId,
-          groupId:document.getElementById('projectGroupId').value,
-          groupName:document.getElementById('projectGroupName').value,
-          notes:document.getElementById('projectGroupNotes').value,
-          active:document.getElementById('projectGroupActive').checked
-        });
-        teacherData.classManagement = result.data;
-        resetProjectGroupForm();
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
-    async function saveProjectGroupAssignments() {
-      if (activeClassId === 'ALL') return notify('Choose one class first.');
-      const assignments = Array.from(document.querySelectorAll('#projectGroupAssignmentGrid .project-group-assignment')).filter(select => select.value).map(select => ({
-        email:select.dataset.email,
-        name:select.dataset.name,
-        groupId:select.value,
-        role:'Member'
-      }));
-      try {
-        const result = await postAction('save_project_group_assignments', { classId:activeClassId, assignments });
-        teacherData.classManagement = result.data;
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
     }
     function resetProjectForm() {
       document.getElementById('projectId').value = '';
@@ -1350,29 +2134,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       document.getElementById('projectQaMinutes').value = item.qaMinutes || 0;
       document.getElementById('projectPublished').checked = item.published !== false;
     }
-    async function saveProjectDefinition() {
-      if (activeClassId === 'ALL') return notify('Choose one class first.');
-      try {
-        const result = await postAction('save_project', {
-          classId:activeClassId,
-          projectId:document.getElementById('projectId').value,
-          projectName:document.getElementById('projectName').value,
-          projectType:document.getElementById('projectType').value,
-          dueDate:document.getElementById('projectDueDate').value,
-          description:document.getElementById('projectDescription').value,
-          submissionRequirements:document.getElementById('projectRequirements').value,
-          minimumWorkingFeatures:Number(document.getElementById('projectMinimumFeatures').value || 0),
-          creditLimit:Number(document.getElementById('projectCreditLimit').value || 0),
-          presentationMinutes:Number(document.getElementById('projectPresentationMinutes').value || 0),
-          qaMinutes:Number(document.getElementById('projectQaMinutes').value || 0),
-          published:document.getElementById('projectPublished').checked
-        });
-        teacherData.classManagement = result.data;
-        resetProjectForm();
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
     function resetGroupProjectForm() {
       document.getElementById('groupProjectUseCase').value = '';
       document.getElementById('groupProjectBriefUrl').value = '';
@@ -1394,57 +2155,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       document.getElementById('groupProjectPresentationOrder').value = item.presentationOrder || '';
       document.getElementById('groupProjectNotes').value = item.notes || '';
       document.getElementById('groupProjectActive').checked = item.active !== false;
-    }
-    async function saveGroupProjectAssignment() {
-      if (activeClassId === 'ALL') return notify('Choose one class first.');
-      try {
-        const result = await postAction('save_group_project', {
-          classId:activeClassId,
-          groupId:document.getElementById('groupProjectGroup').value,
-          projectId:document.getElementById('groupProjectProject').value,
-          useCase:document.getElementById('groupProjectUseCase').value,
-          briefUrl:document.getElementById('groupProjectBriefUrl').value,
-          trialAccount:document.getElementById('groupProjectTrialAccount').value,
-          consoleUrl:document.getElementById('groupProjectConsoleUrl').value,
-          presentationOrder:document.getElementById('groupProjectPresentationOrder').value,
-          notes:document.getElementById('groupProjectNotes').value,
-          active:document.getElementById('groupProjectActive').checked
-        });
-        teacherData.classManagement = result.data;
-        resetGroupProjectForm();
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
-    async function deleteProjectGroup(groupId, groupName) {
-      if (activeClassId === 'ALL') return notify('Choose one class first.');
-      if (!confirm(`Permanently delete "${groupName}"?\n\nThis removes the group along with its student assignments, any projects assigned to it, and their submissions.\n\nThis cannot be undone.`)) return;
-      try {
-        const result = await postAction('delete_project_group', { classId:activeClassId, groupId });
-        teacherData.classManagement = result.data;
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
-    async function deleteProjectDefinition(projectId, projectName) {
-      if (activeClassId === 'ALL') return notify('Choose one class first.');
-      if (!confirm(`Permanently delete "${projectName}"?\n\nThis removes the project along with any group assignments and submissions tied to it.\n\nThis cannot be undone.`)) return;
-      try {
-        const result = await postAction('delete_project', { classId:activeClassId, projectId });
-        teacherData.classManagement = result.data;
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
-    async function deleteGroupProjectAssignment(assignmentId, label) {
-      if (activeClassId === 'ALL') return notify('Choose one class first.');
-      if (!confirm(`Remove the assignment "${label}"?\n\nAny submissions tied to it will also be removed.\n\nThis cannot be undone.`)) return;
-      try {
-        const result = await postAction('delete_group_project', { classId:activeClassId, assignmentId });
-        teacherData.classManagement = result.data;
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
     }
     function renderProjectManager() {
       const hint = document.getElementById('projectAdminHint');
@@ -1672,81 +2382,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       if (lastResult) teacherData.resourceHistory = lastResult.data.history || [];
       return entries.length * courseIds.length;
     }
-    async function saveCourse() {
-      if (activeClassId === 'ALL') return notify('Choose a class before saving a session.');
-      const session = document.getElementById('courseSession').value;
-      const baseId = document.getElementById('courseId').value.trim();
-      if (!baseId) return notify('Enter a Course/session ID.');
-      const courseDate = document.getElementById('courseDate').value;
-      const shared = {
-        classId: activeClassId,
-        course: document.getElementById('courseTitle').value,
-        lessonMode: document.getElementById('courseMode').value,
-        date: courseDate,
-        portalStatus: document.getElementById('courseStatus').value,
-        description: document.getElementById('courseDescription').value,
-        attendanceEnabled: document.getElementById('courseAttendanceEnabled').checked
-      };
-      try {
-        let savedCourseIds = [];
-        let sessionMessage = '';
-        if (session === 'Both') {
-          const legs = [
-            { suffix:'-AM', session:'Morning', startTime:'09:00', attendanceTime:'09:00', checkInOpens:'08:30', attendanceLabel:'Lesson start' },
-            { suffix:'-PM', session:'Afternoon', startTime:'13:00', attendanceTime:'13:00', checkInOpens:'12:30', attendanceLabel:'Lesson end' }
-          ];
-          let lastResult;
-          for (const leg of legs) {
-            const legCourseId = baseId.endsWith(leg.suffix) ? baseId : baseId + leg.suffix;
-            savedCourseIds.push(legCourseId);
-            lastResult = await postAction('save_course', Object.assign({}, shared, {
-              courseId: legCourseId,
-              startTime: leg.startTime,
-              session: leg.session,
-              attendanceTime: leg.attendanceTime,
-              checkInOpens: leg.checkInOpens,
-              attendanceLabel: leg.attendanceLabel
-            }));
-          }
-          teacherData.classManagement = lastResult.data;
-          sessionMessage = 'Both sessions saved (' + baseId + '-AM and ' + baseId + '-PM).';
-        } else {
-          savedCourseIds = [baseId];
-          const result = await postAction('save_course', Object.assign({}, shared, {
-            courseId: baseId,
-            startTime: document.getElementById('courseStart').value,
-            session: session,
-            attendanceTime: document.getElementById('courseAttendanceTime').value,
-            checkInOpens: document.getElementById('courseOpens').value,
-            attendanceLabel: document.getElementById('courseAttendanceLabel').value
-          }));
-          teacherData.classManagement = result.data;
-          sessionMessage = result.message;
-        }
-        const resourceCount = await saveResourceEntriesForCourse_(savedCourseIds, courseDate);
-        resetCourseForm();
-        renderAll();
-        notify(resourceCount ? `${sessionMessage} ${resourceCount} resource(s) attached.` : sessionMessage);
-      } catch (error) { notify(error.message); }
-    }
-    async function archiveCourse(courseId) {
-      if (!confirm('Cancel this class session? It will remain visible as cancelled.')) return;
-      try {
-        const result = await postAction('archive_course',{courseId});
-        teacherData.classManagement = result.data;
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
-    async function deleteCourseEntry(courseId) {
-      if (!confirm('Permanently delete this class session?\n\nThis removes it entirely — unlike Cancel, this cannot be undone.')) return;
-      try {
-        const result = await postAction('delete_course',{courseId});
-        teacherData.classManagement = result.data;
-        renderAll();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
     function weeklyDefinitions(data) {
       const first = data.find(item => Array.isArray(item.requirements) && item.requirements.length);
       if (!first) return [];
@@ -1874,16 +2509,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       document.getElementById('formSubmissionsTable').innerHTML = rows.length ? html : '<p class="empty">No students found.</p>';
     }
 
-    async function toggleTeacherFormStatus(email, formKey, status) {
-      try {
-        await postAction('submit_form_status', { studentEmail: email, formKey, status });
-        notify('Status updated.');
-        await loadData();
-      } catch (error) {
-        notify(error.message);
-        renderFormSubmissions();
-      }
-    }
 
     function fileAsBase64(file) {
       return new Promise((resolve,reject) => {
@@ -2035,20 +2660,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       button.textContent = `Delete selected (${count})`;
       button.disabled = count === 0;
     }
-    async function deleteSelectedCourses() {
-      const ids = Array.from(document.querySelectorAll('#sessionsAndResourcesList .course-select:checked')).map(box => box.dataset.id);
-      if (!ids.length) return;
-      if (!confirm(`Permanently delete ${ids.length} class session(s)?\n\nThis cannot be undone.`)) return;
-      try {
-        let lastResult;
-        for (const courseId of ids) {
-          lastResult = await postAction('delete_course', { courseId });
-        }
-        teacherData.classManagement = lastResult.data;
-        renderAll();
-        notify(`${ids.length} class session(s) deleted.`);
-      } catch (error) { notify(error.message); }
-    }
     function toggleAllResourceSelection(checked) {
       document.querySelectorAll('#sessionsAndResourcesList .resource-select').forEach(box => { box.checked = checked; });
       updateResourceSelectionCount();
@@ -2059,57 +2670,11 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       button.textContent = `Delete selected (${count})`;
       button.disabled = count === 0;
     }
-    async function deleteSelectedResources() {
-      const ids = Array.from(document.querySelectorAll('#sessionsAndResourcesList .resource-select:checked')).map(box => box.dataset.id);
-      if (!ids.length) return;
-      if (!confirm(`Permanently delete ${ids.length} resource(s)?\n\nThis cannot be undone.`)) return;
-      try {
-        let lastResult;
-        for (const id of ids) {
-          lastResult = await postAction('delete_weekly_resource_permanently', { resourceId: id });
-        }
-        const otherClasses = (teacherData.resourceHistory || []).filter(item => item.classId !== activeClassId);
-        teacherData.resourceHistory = otherClasses.concat(lastResult.data.history || []);
-        renderSessionsAndResources();
-        notify(`${ids.length} resource(s) deleted.`);
-      } catch (error) { notify(error.message); }
-    }
     function editResourceInline(id) {
       const item = (teacherData.resourceHistory || []).find(resource => resource.id === id);
       const row = document.querySelector(`[data-resource-row="${id}"]`);
       if (!item || !row) return;
       row.innerHTML = `<div style="display:grid;gap:8px;flex:1 1 auto;min-width:0"><input type="text" class="inline-edit-title" value="${escapeHtml(item.title)}" placeholder="Title"><input type="url" class="inline-edit-url" value="${escapeHtml(item.url)}" placeholder="https://…"><textarea class="inline-edit-description" rows="2" placeholder="Description">${escapeHtml(item.description)}</textarea><label class="check"><input type="checkbox" class="inline-edit-published" ${item.published ? 'checked' : ''}>Published</label><label style="font-size:12px;color:var(--muted)">Replace file (optional)<input type="file" class="inline-edit-file"></label></div><div class="actions"><button class="btn small green" type="button" onclick="saveResourceInlineEdit('${escapeHtml(id)}')">Save</button><button class="btn small secondary" type="button" onclick="renderSessionsAndResources()">Cancel</button></div>`;
-    }
-    async function saveResourceInlineEdit(id) {
-      const item = (teacherData.resourceHistory || []).find(resource => resource.id === id);
-      const row = document.querySelector(`[data-resource-row="${id}"]`);
-      if (!item || !row) return;
-      const title = row.querySelector('.inline-edit-title').value.trim();
-      const url = row.querySelector('.inline-edit-url').value.trim();
-      const description = row.querySelector('.inline-edit-description').value.trim();
-      const published = row.querySelector('.inline-edit-published').checked;
-      const file = row.querySelector('.inline-edit-file').files[0];
-      if (!title) return notify('Enter a title.');
-      if (file && file.size > 8 * 1024 * 1024) return notify('File must be 8 MB or smaller.');
-      try {
-        const payload = { classId: item.classId, resourceId: id, weekStart: item.weekStart, courseId: item.courseId || '', title, url, description, published };
-        if (file) Object.assign(payload, { fileName: file.name, mimeType: file.type, fileData: await fileAsBase64(file) });
-        const result = await postAction('save_weekly_resource', payload);
-        const otherClasses = (teacherData.resourceHistory || []).filter(r => r.classId !== activeClassId);
-        teacherData.resourceHistory = otherClasses.concat(result.data.history || []);
-        renderSessionsAndResources();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
-    async function archiveResource(resourceId) {
-      if (!confirm('Archive this weekly resource? It will remain visible here as archived.')) return;
-      try {
-        const result = await postAction('delete_weekly_resource',{resourceId});
-        const otherClasses = (teacherData.resourceHistory || []).filter(item => item.classId !== activeClassId);
-        teacherData.resourceHistory = otherClasses.concat(result.data.history || []);
-        renderSessionsAndResources();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
     }
 
     function renderClassFeedbackLinkEditor() {
@@ -2136,22 +2701,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         host.appendChild(row);
       });
     }
-    async function saveClassFeedbackLinks() {
-      if (activeClassId === 'ALL') return notify('Choose one class first.');
-      try {
-        const links = Array.from(document.querySelectorAll('#classFeedbackLinkEditor .list-row')).map(row => ({
-          key:row.dataset.key,
-          label:row.querySelector('[data-field="label"]').value,
-          url:row.querySelector('[data-field="url"]').value,
-          description:row.querySelector('[data-field="description"]').value,
-          published:row.querySelector('[data-field="published"]').checked
-        }));
-        const result = await postAction('save_class_feedback_links',{classId:activeClassId,links});
-        teacherData.classManagement = result.data;
-        renderClassFeedbackLinkEditor();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
     function renderClassExamLinkEditor() {
       const host = document.getElementById('classExamLinkEditor');
       const hint = document.getElementById('classExamLinkHint');
@@ -2176,47 +2725,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
         host.appendChild(row);
       });
     }
-    async function saveClassExamLinks() {
-      if (activeClassId === 'ALL') return notify('Choose one class first.');
-      try {
-        const links = Array.from(document.querySelectorAll('#classExamLinkEditor .list-row')).map(row => ({
-          key:row.dataset.key,
-          label:row.querySelector('[data-field="label"]').value,
-          url:row.querySelector('[data-field="url"]').value,
-          description:row.querySelector('[data-field="description"]').value,
-          published:row.querySelector('[data-field="published"]').checked
-        }));
-        const result = await postAction('save_class_exam_links',{classId:activeClassId,links});
-        teacherData.classManagement = result.data;
-        renderClassExamLinkEditor();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
-    async function acknowledgeAttendance(email, classId) {
-      const scope = classId && classId !== 'ALL' ? classNameFor(classId) : 'all classes';
-      if (!confirm(`Verify this student's pending attendance for ${scope} today?`)) return;
-      try { const result = await postAction('teacher_acknowledge',{studentEmail:email,classId:classId||'ALL'}); notify(result.message); await loadData(); }
-      catch (error) { notify(error.message); }
-    }
-    async function acknowledgeAllAttendance() {
-      const scope = activeClassId === 'ALL' ? 'all classes' : classNameFor(activeClassId);
-      if (!confirm(`Verify every pending check-in today for ${scope}?`)) return;
-      try {
-        const result = await postAction('teacher_acknowledge_all', { classId: activeClassId });
-        notify(result.message);
-        await loadData();
-      } catch (error) { notify(error.message); }
-    }
-    async function sendAttendanceEmails() {
-      if (!confirm(`Email the attendance link to ${activeClassId === 'ALL' ? 'all registered students' : classNameFor(activeClassId)}?`)) return;
-      try { const result = await postAction('send_attendance_emails',{studentPageUrl:STUDENT_PAGE_URL,classId:activeClassId}); notify(result.message); }
-      catch (error) { notify(error.message); }
-    }
-    async function syncAllBadges() {
-      if (!confirm('Fetch all saved public Google Skills profiles?')) return;
-      try { const result = await postAction('sync_all_badges'); notify(result.message); await loadData(); }
-      catch (error) { notify(error.message); }
-    }
 
     function instructorAddRowTemplate_() {
       return '<div class="student-add-row">'
@@ -2240,51 +2748,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
     }
     function resetInstructorRows() {
       document.getElementById('newInstructorRows').innerHTML = instructorAddRowTemplate_();
-    }
-    async function addInstructors() {
-      const instructors = Array.from(document.querySelectorAll('#newInstructorRows .student-add-row')).map(function (row) {
-        return {
-          instructorName: row.querySelector('.instructor-add-name').value.trim(),
-          instructorEmail: row.querySelector('.instructor-add-email').value.trim()
-        };
-      }).filter(function (item) { return item.instructorName || item.instructorEmail; });
-      if (!instructors.length) return notify('Enter at least one instructor name and email.');
-      const button = document.getElementById('addInstructorBtn');
-      button.disabled = true;
-      try {
-        const result = await postAction('add_instructors', { instructors: instructors });
-        teacherData.instructorManagement = result.data;
-        resetInstructorRows();
-        renderInstructorManagement();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-      finally { button.disabled = false; }
-    }
-    async function deactivateInstructor(email, name) {
-      if (!confirm(`Remove portal access for ${name}? They will no longer be able to sign in as an instructor. You can reactivate them anytime.`)) return;
-      try {
-        const result = await postAction('set_instructor_active', { instructorEmail: email, active: false });
-        teacherData.instructorManagement = result.data;
-        renderInstructorManagement();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
-    async function reactivateInstructor(email) {
-      try {
-        const result = await postAction('set_instructor_active', { instructorEmail: email, active: true });
-        teacherData.instructorManagement = result.data;
-        renderInstructorManagement();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
-    async function deleteInstructor(email, name) {
-      if (!confirm(`Permanently delete ${name} from the instructor list?\n\nThis cannot be undone.`)) return;
-      try {
-        const result = await postAction('delete_instructor', { instructorEmail: email });
-        teacherData.instructorManagement = result.data;
-        renderInstructorManagement();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
     }
     function renderInstructorManagement() {
       const activeHost = document.getElementById('instructorList');
@@ -2368,15 +2831,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
           : '<p class="empty">No feedback has been submitted yet.</p>';
       }
     }
-    async function deleteFeedbackLogEntry(id) {
-      if (!confirm('Delete this feedback entry?\n\nThis cannot be undone.')) return;
-      try {
-        const result = await postAction('delete_feedback_log', { id });
-        teacherData.feedbackLogs = result.data;
-        renderFeedbackLogs();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
 
     function toggleBehaviorReportOther() {
       const select = document.getElementById('behaviorReportBehavior');
@@ -2412,44 +2866,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
       select.innerHTML = '<option value="">-- Choose trainee --</option>' + eligible.map(person => `<option value="${escapeHtml(person.email)}">${escapeHtml(person.name)}</option>`).join('');
       select.value = Array.from(select.options).some(option => option.value === current) ? current : '';
     }
-    async function saveBehaviorReport() {
-      const studentEmail = document.getElementById('behaviorReportTrainee').value;
-      if (!studentEmail) return notify('Choose a trainee.');
-      const selectedBehavior = document.getElementById('behaviorReportBehavior').value;
-      if (!selectedBehavior) return notify('Select a behavior from the list.');
-      const otherText = document.getElementById('behaviorReportOther').value.trim();
-      if (selectedBehavior === 'Other' && !otherText) return notify('Describe the behavior in the "Please specify" field.');
-      const behavior = selectedBehavior === 'Other' ? otherText : selectedBehavior;
-      const file = document.getElementById('behaviorReportFile').files[0];
-      if (file && file.size > 8 * 1024 * 1024) return notify('Evidence file must be 8 MB or smaller.');
-      const button = document.getElementById('submitBehaviorReportBtn');
-      button.disabled = true;
-      try {
-        const payload = {
-          studentEmail: studentEmail,
-          date: document.getElementById('behaviorReportDate').value,
-          category: document.getElementById('behaviorReportCategory').value,
-          behavior: behavior,
-          evidence: document.getElementById('behaviorReportEvidence').value.trim()
-        };
-        if (file) Object.assign(payload, { fileName: file.name, mimeType: file.type, fileData: await fileAsBase64(file) });
-        const result = await postAction('submit_behavior_report', payload);
-        teacherData.behaviorReports = result.data;
-        resetBehaviorReportForm();
-        renderBehaviorReports();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-      finally { button.disabled = false; }
-    }
-    async function deleteBehaviorReportEntry(id) {
-      if (!confirm('Delete this behavior report?\n\nThis cannot be undone.')) return;
-      try {
-        const result = await postAction('delete_behavior_report', { id });
-        teacherData.behaviorReports = result.data;
-        renderBehaviorReports();
-        notify(result.message);
-      } catch (error) { notify(error.message); }
-    }
     function renderBehaviorReports() {
       const host = document.getElementById('behaviorReportList');
       if (!host) return;
@@ -2481,5 +2897,6 @@ Do not exceed the US$300 free credit; stop cloud services when not in use.</text
     }
   </script>
   <script type="module" src="teacher-auth.js"></script>
+  <script type="module" src="firestore-teacher.js"></script>
 </body>
 </html>

@@ -33,6 +33,11 @@ service cloud.firestore {
     function rosterDoc() {
       return get(/databases/$(database)/documents/roster/$(me())).data;
     }
+    function isTrainerDoc() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/trainers/$(me()))
+        && get(/databases/$(database)/documents/trainers/$(me())).data.active == true;
+    }
 
     match /roster/{email} {
       allow read: if signedIn() && email == me();
@@ -41,6 +46,16 @@ service cloud.firestore {
 
     match /studentView/{email} {
       allow read: if signedIn() && email == me() && rosterDoc().active == true;
+      allow write: if false;
+    }
+
+    match /trainers/{email} {
+      allow read: if signedIn() && email == me();
+      allow write: if false;
+    }
+
+    match /teacherView/{id} {
+      allow read: if isTrainerDoc();
       allow write: if false;
     }
 
